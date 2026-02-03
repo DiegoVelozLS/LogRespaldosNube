@@ -8,10 +8,11 @@ import CalendarView from './components/CalendarView';
 import BackupRegistration from './components/BackupRegistration';
 import AdminPanel from './components/AdminPanel';
 import AccountProfile from './components/AccountProfile';
+import MonthlyReport from './components/MonthlyReport';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'register' | 'admin' | 'stats' | 'profile'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'register' | 'admin' | 'stats' | 'profile' | 'reports'>('dashboard');
   const [pendingAlerts, setPendingAlerts] = useState<number>(0);
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined);
 
@@ -124,6 +125,14 @@ const App: React.FC = () => {
             </button>
           )}
 
+          {/* Reportes para todos los roles */}
+          <button onClick={() => setActiveTab('reports')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'reports' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span className="font-medium">Reportes</span>
+          </button>
+
           {isAdmin && (
             <button onClick={() => setActiveTab('admin')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'admin' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
               <AdminIcon />
@@ -163,6 +172,7 @@ const App: React.FC = () => {
           {activeTab === 'admin' && <AdminPanel role={user.role} />}
           {activeTab === 'stats' && <AdminPanel role={user.role} initialTab="stats" />}
           {activeTab === 'profile' && <AccountProfile user={user} />}
+          {activeTab === 'reports' && <MonthlyReport user={user} />}
         </div>
       </main>
     </div>

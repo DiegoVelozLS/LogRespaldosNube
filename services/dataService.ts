@@ -148,5 +148,131 @@ export const dataService = {
         schedule: s,
         log: logs.find(l => l.scheduleId === s.id && l.dateStr === dateStr)
       }));
+  },
+
+  getMonthlyReport: (year: number, month: number) => {
+    const schedules = dataService.getSchedules();
+    const logs = dataService.getLogs();
+    const users = dataService.getUsers();
+
+    // Filtrar logs del mes seleccionado
+    const monthLogs = logs.filter(log => {
+      const logDate = new Date(log.timestamp);
+      return logDate.getFullYear() === year && logDate.getMonth() === month;
+    });
+
+    // Resumen ejecutivo
+    const totalExecuted = monthLogs.length;
+    const successful = monthLogs.filter(l => l.status === 'COMPLETED').length;
+    const failed = monthLogs.filter(l => l.status === 'FAILED').length;
+    const warnings = monthLogs.filter(l => l.status === 'WARNING').length;
+    const successRate = totalExecuted > 0 ? Math.round((successful / totalExecuted) * 100) : 0;
+
+    // Desglose por tipo
+    const byType = schedules.map(schedule => {
+      const scheduleLogs = monthLogs.filter(l => l.scheduleId === schedule.id);
+      return {
+        type: schedule.type,
+        executed: scheduleLogs.length,
+        successful: scheduleLogs.filter(l => l.status === 'COMPLETED').length,
+        failed: scheduleLogs.filter(l => l.status === 'FAILED').length,
+        warnings: scheduleLogs.filter(l => l.status === 'WARNING').length
+      };
+    }).filter(item => item.executed > 0);
+
+    // Agrupar tipos duplicados
+    const typeMap = new Map();
+    byType.forEach(item => {
+      if (typeMap.has(item.type)) {
+        const existing = typeMap.get(item.type);
+        existing.executed += item.executed;
+        existing.successful += item.successful;
+        existing.failed += item.failed;
+        existing.warnings += item.warnings;
+      } else {
+        typeMap.set(item.type, { ...item });
+      }
+    });
+
+    // Desempeño por técnico
+    const techMap = new Map();
+    monthLogs.forEach(log => {
+      if (!techMap.has(log.userId)) {
+        techMap.set(log.userId, {
+          name: log.userName,
+          count: 0,
+          successful: 0,
+          failed: 0,
+          warnings: 0
+        });
+      }
+      const tech = techMap.get(log.userId);
+      tech.count++;
+      if (log.status === 'COMPLETED') tech.successful++;
+      else if (log.status === 'FAILED') tech.failed++;
+      else if (log.status === 'WARNING') tech.warnings++;
+    });
+
+    const byTechnician = Array.from(techMap.values()).map(tech => ({
+      ...tech,
+      successRate: tech.count > 0 ? Math.round((tech.successful / tech.count) * 100) : 0
+    })).sort((a, b) => b.count - a.count);
+
+    // Incidentes críticos (fallidos y warnings)
+    const criticalIncidents = monthLogs
+      .filter(l => l.status === 'FAILED' || l.status === 'WARNING')
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+    // Nombres de schedules para referencia
+    const scheduleNames: Record<string, string> = {};
+    schedules.forEach(s => {
+      scheduleNames[s.id] = s.name;
+    });
+
+    // Generar recomendaciones
+    const recommendations: string[] = [];
+    if (successRate >= 95) {
+      recommendations.push(`Excelente desempeño con ${successRate}% de tasa de éxito. ¡Sigan así!`);
+    } else if (successRate >= 85) {
+      recommendations.push(`Buen desempeño con ${successRate}% de tasa de éxito, pero hay margen de mejora.`);
+    } else {
+      recommendations.push(`⚠️ Tasa de éxito de ${successRate}% está por debajo del objetivo. Se requiere revisión urgente.`);
+    }
+
+    if (failed > 0) {
+      recommendations.push(`Se detectaron ${failed} respaldos fallidos este mes. Revisar logs de incidentes.`);
+    }
+
+    // Identificar respaldos problemáticos
+    const failuresBySchedule = new Map();
+    criticalIncidents.forEach(log => {
+      if (log.status === 'FAILED') {
+        const count = failuresBySchedule.get(log.scheduleId) || 0;
+        failuresBySchedule.set(log.scheduleId, count + 1);
+      }
+    });
+
+    failuresBySchedule.forEach((count, scheduleId) => {
+      if (count >= 3) {
+        const scheduleName = scheduleNames[scheduleId] || 'Desconocido';
+        recommendations.push(`⚠️ El respaldo "${scheduleName}" ha fallado ${count} veces. Requiere atención inmediata.`);
+      }
+    });
+
+    return {
+      summary: {
+        totalScheduled: schedules.length,
+        totalExecuted,
+        successful,
+        failed,
+        warnings,
+        successRate
+      },
+      byType: Array.from(typeMap.values()),
+      byTechnician,
+      criticalIncidents,
+      scheduleNames,
+      recommendations
+    };
   }
 };
