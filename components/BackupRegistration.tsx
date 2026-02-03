@@ -5,9 +5,9 @@ import { dataService } from '../services/dataService';
 import { BACKUP_TYPE_ICONS, STATUS_COLORS } from '../constants';
 import { ClockIcon, CheckIcon } from './Icons';
 
-const BackupRegistration: React.FC<{ user: User; onComplete: () => void }> = ({ user, onComplete }) => {
+const BackupRegistration: React.FC<{ user: User; preSelectedTaskId?: string; onComplete: () => void }> = ({ user, preSelectedTaskId, onComplete }) => {
   const [availableTasks, setAvailableTasks] = useState<BackupSchedule[]>([]);
-  const [selectedTaskId, setSelectedTaskId] = useState('');
+  const [selectedTaskId, setSelectedTaskId] = useState(preSelectedTaskId || '');
   const [status, setStatus] = useState<BackupStatus>(BackupStatus.COMPLETED);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -24,6 +24,14 @@ export const MOCK_SCHEDULES: BackupSchedule[] = [
     frequency: FrequencyType.WEEKLY, 
     daysOfWeek: [1],
     description: 'Sincronización semanal de activos archivados.' 
+  },
+  { 
+    id: 's3', 
+    name: 'Respaldo Nube AWS S3', 
+    type: BackupType.CLOUD, 
+    frequency: FrequencyType.CUSTOM, 
+    daysOfWeek: [1, 3, 5], // Lunes, Miércoles, Viernes
+    description: 'Sincronización de documentos críticos a la nube.' 
   }
 ];
 

@@ -7,11 +7,13 @@ import Dashboard from './components/Dashboard';
 import CalendarView from './components/CalendarView';
 import BackupRegistration from './components/BackupRegistration';
 import AdminPanel from './components/AdminPanel';
+import AccountProfile from './components/AccountProfile';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'register' | 'admin' | 'stats'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'register' | 'admin' | 'stats' | 'profile'>('dashboard');
   const [pendingAlerts, setPendingAlerts] = useState<number>(0);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const savedUser = dataService.getCurrentUser();
@@ -131,13 +133,16 @@ const App: React.FC = () => {
         </div>
 
         <div className="p-4 border-t border-slate-800 mt-auto">
-          <div className="flex items-center gap-3 mb-4 px-2">
+          <button 
+            onClick={() => setActiveTab('profile')}
+            className="w-full flex items-center gap-3 mb-4 px-2 hover:bg-slate-800 rounded-lg transition p-2"
+          >
             <div className="text-blue-400"><UserCircleIcon /></div>
-            <div className="overflow-hidden">
+            <div className="overflow-hidden text-left">
               <p className="text-sm font-semibold truncate">{user.name} {user.lastName}</p>
               <p className="text-xs text-slate-500 uppercase tracking-wider">{user.role}</p>
             </div>
-          </div>
+          </button>
           <button onClick={handleLogout} className="w-full py-2 px-4 rounded-lg bg-slate-800 hover:text-red-400 text-slate-400 text-sm font-medium transition">
             Cerrar Sesión
           </button>
@@ -146,11 +151,18 @@ const App: React.FC = () => {
 
       <main className="flex-1 overflow-y-auto p-4 md:p-8">
         <div className="max-w-6xl mx-auto">
-          {activeTab === 'dashboard' && <Dashboard user={user} onRefresh={() => {}} />}
+          {activeTab === 'dashboard' && <Dashboard user={user} onRefresh={() => {}} onNavigateToRegister={(scheduleId) => {
+            setSelectedTaskId(scheduleId);
+            setActiveTab('register');
+          }} />}
           {activeTab === 'calendar' && <CalendarView user={user} />}
-          {activeTab === 'register' && <BackupRegistration user={user} onComplete={() => setActiveTab('dashboard')} />}
+          {activeTab === 'register' && <BackupRegistration user={user} preSelectedTaskId={selectedTaskId} onComplete={() => {
+            setSelectedTaskId(undefined);
+            setActiveTab('dashboard');
+          }} />}
           {activeTab === 'admin' && <AdminPanel role={user.role} />}
           {activeTab === 'stats' && <AdminPanel role={user.role} initialTab="stats" />}
+          {activeTab === 'profile' && <AccountProfile user={user} />}
         </div>
       </main>
     </div>

@@ -8,9 +8,10 @@ import { STATUS_COLORS, BACKUP_TYPE_ICONS } from '../constants';
 interface DashboardProps {
   user: User;
   onRefresh: () => void;
+  onNavigateToRegister: (scheduleId: string) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, onRefresh }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, onRefresh, onNavigateToRegister }) => {
   const [tasks, setTasks] = useState<{ schedule: BackupSchedule; log?: BackupLog }[]>([]);
   
   const refreshTasks = () => {
@@ -99,7 +100,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onRefresh }) => {
               No hay respaldos programados para el día de hoy.
             </div>
           ) : tasks.map(({ schedule, log }) => (
-            <div key={schedule.id} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 transition">
+            <div 
+              key={schedule.id} 
+              onClick={() => !log && onNavigateToRegister(schedule.id)}
+              className={`p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition ${
+                log ? 'hover:bg-slate-50' : 'hover:bg-blue-50 cursor-pointer'
+              }`}
+            >
               <div className="flex items-start gap-4">
                 <div className="text-2xl bg-slate-100 p-3 rounded-xl">
                   {BACKUP_TYPE_ICONS[schedule.type]}
@@ -109,7 +116,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onRefresh }) => {
                   <p className="text-sm text-slate-500 max-w-md">{schedule.description}</p>
                 </div>
               </div>
-              
               <div className="flex items-center gap-4">
                 {log ? (
                   <div className="flex items-center gap-4">
@@ -131,11 +137,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onRefresh }) => {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${STATUS_COLORS.PENDING}`}>
                       PENDIENTE
                     </span>
                     <div className="w-2 h-2 rounded-full bg-red-500 animate-ping"></div>
+                    <div className="text-blue-600 font-bold text-sm flex items-center gap-1">
+                      <span>Clic para registrar</span>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
                   </div>
                 )}
               </div>

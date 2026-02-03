@@ -42,6 +42,40 @@ export const dataService = {
     return newUser;
   },
 
+  updateUser: (id: string, user: Partial<Omit<User, 'id'>>) => {
+    const users = dataService.getUsers();
+    const index = users.findIndex(u => u.id === id);
+    if (index !== -1) {
+      users[index] = { ...users[index], ...user };
+      localStorage.setItem(USERS_LIST_KEY, JSON.stringify(users));
+      return users[index];
+    }
+    return null;
+  },
+
+  changePassword: (userId: string, currentPassword: string, newPassword: string): boolean => {
+    const users = dataService.getUsers();
+    const user = users.find(u => u.id === userId);
+    if (user && user.password === currentPassword) {
+      user.password = newPassword;
+      localStorage.setItem(USERS_LIST_KEY, JSON.stringify(users));
+      // Actualizar usuario actual en sesión
+      const currentUser = dataService.getCurrentUser();
+      if (currentUser && currentUser.id === userId) {
+        currentUser.password = newPassword;
+        localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+      }
+      return true;
+    }
+    return false;
+  },
+
+  deleteUser: (id: string) => {
+    const users = dataService.getUsers();
+    const filteredUsers = users.filter(u => u.id !== id);
+    localStorage.setItem(USERS_LIST_KEY, JSON.stringify(filteredUsers));
+  },
+
   // Schedules
   getSchedules: (): BackupSchedule[] => {
     const data = localStorage.getItem(SCHEDULES_KEY);
@@ -54,6 +88,23 @@ export const dataService = {
     schedules.push(newSchedule);
     localStorage.setItem(SCHEDULES_KEY, JSON.stringify(schedules));
     return newSchedule;
+  },
+
+  updateSchedule: (id: string, schedule: Partial<Omit<BackupSchedule, 'id'>>) => {
+    const schedules = dataService.getSchedules();
+    const index = schedules.findIndex(s => s.id === id);
+    if (index !== -1) {
+      schedules[index] = { ...schedules[index], ...schedule };
+      localStorage.setItem(SCHEDULES_KEY, JSON.stringify(schedules));
+      return schedules[index];
+    }
+    return null;
+  },
+
+  deleteSchedule: (id: string) => {
+    const schedules = dataService.getSchedules();
+    const filteredSchedules = schedules.filter(s => s.id !== id);
+    localStorage.setItem(SCHEDULES_KEY, JSON.stringify(filteredSchedules));
   },
 
   // Logs
@@ -88,7 +139,7 @@ export const dataService = {
     return schedules
       .filter(s => {
         if (s.frequency === 'DAILY') return true;
-        if (s.frequency === 'WEEKLY' || s.frequency === 'SPECIFIC_DAYS') {
+        if (s.frequency === 'WEEKLY' || s.frequency === 'CUSTOM') {
           return s.daysOfWeek?.includes(dayOfWeek);
         }
         return false;

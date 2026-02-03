@@ -24,7 +24,7 @@ export enum BackupStatus {
 export enum FrequencyType {
   DAILY = 'DAILY',
   WEEKLY = 'WEEKLY',
-  SPECIFIC_DAYS = 'SPECIFIC_DAYS'
+  CUSTOM = 'CUSTOM'
 }
 
 export enum BackupType {
