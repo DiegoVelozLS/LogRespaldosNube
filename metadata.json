@@ -1,0 +1,5 @@
+{
+  "name": "CloudGuard - Enterprise Backup Controller",
+  "description": "A comprehensive system for managing, scheduling, and logging server backups across an enterprise, featuring role-based access control, interactive calendars, and automated task generation.",
+  "requestFramePermissions": []
+}
