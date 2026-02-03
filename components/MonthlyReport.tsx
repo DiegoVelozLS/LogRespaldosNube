@@ -27,7 +27,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ user }) => {
     if (!reportData) return;
 
     const csvRows = [
-      ['Reporte Mensual de Respaldos CloudGuard'],
+      ['Reporte Mensual de Respaldos - Listosoft'],
       [`Período: ${getMonthName(selectedMonth)} ${selectedYear}`],
       [`Generado por: ${user.name} ${user.lastName}`],
       [`Fecha de generación: ${new Date().toLocaleString()}`],
