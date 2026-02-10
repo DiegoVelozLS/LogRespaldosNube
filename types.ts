@@ -52,4 +52,5 @@ export interface BackupLog {
   userName: string;
   notes: string;
   dateStr: string;
+  scheduleName?: string;
 }
