@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BackupSchedule, BackupLog, BackupType, FrequencyType, UserRole, User } from '../types';
-import { dataService } from '../services/dataService';
+import { supabaseDataService } from '../services/supabaseDataService';
 import { BACKUP_TYPE_ICONS, STATUS_COLORS } from '../constants';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -287,6 +287,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
   const [logs, setLogs] = useState<BackupLog[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [activeTab, setActiveTab] = useState<'schedules' | 'stats' | 'users'>(initialTab);
+  const [loading, setLoading] = useState(true);
   
   // Forms states
   const [showUserForm, setShowUserForm] = useState(false);
@@ -301,10 +302,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
   useEffect(() => {
-    setSchedules(dataService.getSchedules());
-    setLogs(dataService.getLogs());
-    setUsers(dataService.getUsers());
-    if (role === UserRole.SUPERVISOR) setActiveTab('stats');
+    const loadData = async () => {
+      setLoading(true);
+      const [schedulesData, logsData, usersData] = await Promise.all([
+        supabaseDataService.getSchedules(),
+        supabaseDataService.getLogs(),
+        supabaseDataService.getUsers()
+      ]);
+      setSchedules(schedulesData);
+      setLogs(logsData);
+      setUsers(usersData);
+      if (role === UserRole.SUPERVISOR) setActiveTab('stats');
+      setLoading(false);
+    };
+    loadData();
   }, [role]);
 
   useEffect(() => {
@@ -323,7 +334,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
     }
   }, [userMenuOpenId]);
 
-  const handleCreateUser = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const userData = {
@@ -335,11 +346,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
     };
     
     if (editingUser) {
-      dataService.updateUser(editingUser.id, userData);
+      await supabaseDataService.updateUser(editingUser.id, userData);
     } else {
-      dataService.saveUser(userData);
+      await supabaseDataService.saveUser(userData);
     }
-    setUsers(dataService.getUsers());
+    const updatedUsers = await supabaseDataService.getUsers();
+    setUsers(updatedUsers);
     setShowUserForm(false);
     setEditingUser(null);
   };
@@ -355,10 +367,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
       <ConfirmDeleteModal
         isOpen={deleteModalOpen}
         scheduleName={scheduleToDelete?.name || ''}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (scheduleToDelete) {
-            dataService.deleteSchedule(scheduleToDelete.id);
-            setSchedules(dataService.getSchedules());
+            await supabaseDataService.deleteSchedule(scheduleToDelete.id);
+            const updatedSchedules = await supabaseDataService.getSchedules();
+            setSchedules(updatedSchedules);
           }
           setDeleteModalOpen(false);
           setScheduleToDelete(null);
@@ -372,10 +385,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
       <ConfirmDeleteUserModal
         isOpen={deleteUserModalOpen}
         userName={userToDelete ? `${userToDelete.name} ${userToDelete.lastName}` : ''}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (userToDelete) {
-            dataService.deleteUser(userToDelete.id);
-            setUsers(dataService.getUsers());
+            await supabaseDataService.deleteUser(userToDelete.id);
+            const updatedUsers = await supabaseDataService.getUsers();
+            setUsers(updatedUsers);
           }
           setDeleteUserModalOpen(false);
           setUserToDelete(null);
@@ -419,13 +433,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
                 setShowScheduleForm(false);
                 setEditingSchedule(null);
               }} 
-              onSave={(schedule) => {
+              onSave={async (schedule) => {
                 if (editingSchedule) {
-                  dataService.updateSchedule(editingSchedule.id, schedule);
+                  await supabaseDataService.updateSchedule(editingSchedule.id, schedule);
                 } else {
-                  dataService.saveSchedule(schedule);
+                  await supabaseDataService.saveSchedule(schedule);
                 }
-                setSchedules(dataService.getSchedules());
+                const updatedSchedules = await supabaseDataService.getSchedules();
+                setSchedules(updatedSchedules);
                 setShowScheduleForm(false);
                 setEditingSchedule(null);
               }} />

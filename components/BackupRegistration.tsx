@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, BackupSchedule, BackupStatus } from '../types';
-import { dataService } from '../services/dataService';
+import { supabaseDataService } from '../services/supabaseDataService';
 import { BACKUP_TYPE_ICONS, STATUS_COLORS } from '../constants';
 import { ClockIcon, CheckIcon } from './Icons';
 
@@ -13,19 +13,22 @@ const BackupRegistration: React.FC<{ user: User; preSelectedTaskId?: string; onC
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const tasks = dataService.getTasksForDate(new Date());
-    // Filtrar tareas que no han sido registradas hoy
-    setAvailableTasks(tasks.filter(t => !t.log).map(t => t.schedule));
+    const loadTasks = async () => {
+      const tasks = await supabaseDataService.getTasksForDate(new Date());
+      // Filtrar tareas que no han sido registradas hoy
+      setAvailableTasks(tasks.filter(t => !t.log).map(t => t.schedule));
+    };
+    loadTasks();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTaskId) return;
 
     setIsSubmitting(true);
     const now = new Date();
     
-    dataService.saveLog({
+    await supabaseDataService.saveLog({
       scheduleId: selectedTaskId,
       status,
       notes,

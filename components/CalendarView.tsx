@@ -1,18 +1,42 @@
 
-import React, { useState } from 'react';
-import { User, BackupLog } from '../types';
-import { dataService } from '../services/dataService';
+import React, { useState, useEffect } from 'react';
+import { User, BackupLog, BackupSchedule } from '../types';
+import { supabaseDataService } from '../services/supabaseDataService';
 import { BACKUP_TYPE_ICONS, STATUS_COLORS } from '../constants';
 
 const CalendarView: React.FC<{ user: User }> = ({ user }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(new Date());
+  const [monthTasks, setMonthTasks] = useState<Map<string, { schedule: BackupSchedule; log?: BackupLog }[]>>(new Map());
+  const [loading, setLoading] = useState(true);
+
+  const month = currentDate.getMonth();
+  const year = currentDate.getFullYear();
+
+  useEffect(() => {
+    const loadMonthData = async () => {
+      setLoading(true);
+      const totalDays = daysInMonth(year, month);
+      const tasksMap = new Map<string, { schedule: BackupSchedule; log?: BackupLog }[]>();
+      
+      // Cargar tareas para cada día del mes
+      for (let d = 1; d <= totalDays; d++) {
+        const checkDate = new Date(year, month, d);
+        const dateStr = checkDate.toISOString().split('T')[0];
+        const tasks = await supabaseDataService.getTasksForDate(checkDate);
+        tasksMap.set(dateStr, tasks);
+      }
+      
+      setMonthTasks(tasksMap);
+      setLoading(false);
+    };
+
+    loadMonthData();
+  }, [currentDate]);
 
   const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
 
-  const month = currentDate.getMonth();
-  const year = currentDate.getFullYear();
   const totalDays = daysInMonth(year, month);
   const startDay = firstDayOfMonth(year, month);
 
@@ -23,7 +47,8 @@ const CalendarView: React.FC<{ user: User }> = ({ user }) => {
 
   const getDayStatus = (d: number) => {
     const checkDate = new Date(year, month, d);
-    const tasks = dataService.getTasksForDate(checkDate);
+    const dateStr = checkDate.toISOString().split('T')[0];
+    const tasks = monthTasks.get(dateStr) || [];
     if (tasks.length === 0) return 'empty';
     const allDone = tasks.every(t => !!t.log);
     const hasFailed = tasks.some(t => t.log?.status === 'FAILED');
@@ -35,12 +60,17 @@ const CalendarView: React.FC<{ user: User }> = ({ user }) => {
     return 'success';
   };
 
-  const selectedDayTasks = selectedDay ? dataService.getTasksForDate(selectedDay) : [];
+  const selectedDayTasks = selectedDay ? (monthTasks.get(selectedDay.toISOString().split('T')[0]) || []) : [];
 
   return (
     <div className="space-y-6 animate-fadeIn">
       <h2 className="text-3xl font-bold text-slate-800">Seguimiento Histórico</h2>
       
+      {loading ? (
+        <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-200 text-center">
+          <p className="text-slate-400">Cargando calendario...</p>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Calendar Body */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -140,6 +170,7 @@ const CalendarView: React.FC<{ user: User }> = ({ user }) => {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

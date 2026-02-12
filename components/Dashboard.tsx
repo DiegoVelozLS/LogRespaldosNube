@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, BackupLog, BackupSchedule, BackupStatus } from '../types';
-import { dataService } from '../services/dataService';
+import { supabaseDataService } from '../services/supabaseDataService';
 import { AlertIcon, CheckIcon, ClockIcon, TrashIcon } from './Icons';
 import { STATUS_COLORS, BACKUP_TYPE_ICONS } from '../constants';
 
@@ -13,20 +13,23 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ user, onRefresh, onNavigateToRegister }) => {
   const [tasks, setTasks] = useState<{ schedule: BackupSchedule; log?: BackupLog }[]>([]);
+  const [loading, setLoading] = useState(true);
   
-  const refreshTasks = () => {
-    const todayTasks = dataService.getTasksForDate(new Date());
+  const refreshTasks = async () => {
+    setLoading(true);
+    const todayTasks = await supabaseDataService.getTasksForDate(new Date());
     setTasks(todayTasks);
     onRefresh();
+    setLoading(false);
   };
 
   useEffect(() => {
     refreshTasks();
   }, []);
 
-  const handleUndo = (logId: string) => {
+  const handleUndo = async (logId: string) => {
     if (confirm('¿Estás seguro de que deseas deshacer este registro? La tarea volverá a estar pendiente.')) {
-      dataService.deleteLog(logId);
+      await supabaseDataService.deleteLog(logId);
       refreshTasks();
     }
   };
@@ -95,7 +98,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onRefresh, onNavigateToRegi
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">{tasks.length} en total</span>
         </div>
         <div className="divide-y divide-slate-100">
-          {tasks.length === 0 ? (
+          {loading ? (
+            <div className="p-12 text-center text-slate-400">
+              Cargando tareas...
+            </div>
+          ) : tasks.length === 0 ? (
             <div className="p-12 text-center text-slate-400">
               No hay respaldos programados para el día de hoy.
             </div>

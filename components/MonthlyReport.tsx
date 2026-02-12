@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, BackupLog } from '../types';
-import { dataService } from '../services/dataService';
+import { supabaseDataService } from '../services/supabaseDataService';
 
 interface MonthlyReportProps {
   user: User;
@@ -16,19 +16,22 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ user }) => {
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     generateReport();
   }, [selectedMonth, selectedYear]);
 
-  const generateReport = () => {
-    const data = dataService.getMonthlyReport(selectedYear, selectedMonth);
+  const generateReport = async () => {
+    setLoading(true);
+    const data = await supabaseDataService.getMonthlyReport(selectedYear, selectedMonth);
     setReportData(data);
     // Reset filters when changing period
     setFilterPerson('');
     setFilterStatus('');
     setFilterDateFrom('');
     setFilterDateTo('');
+    setLoading(false);
   };
 
   // Get unique person names from report data

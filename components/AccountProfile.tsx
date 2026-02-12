@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { UserCircleIcon } from './Icons';
-import { dataService } from '../services/dataService';
+import { supabaseDataService } from '../services/supabaseDataService';
 
 interface AccountProfileProps {
   user: User;
@@ -16,7 +16,7 @@ const AccountProfile: React.FC<AccountProfileProps> = ({ user }) => {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
     setPasswordSuccess(false);
@@ -31,7 +31,7 @@ const AccountProfile: React.FC<AccountProfileProps> = ({ user }) => {
       return;
     }
 
-    const success = dataService.changePassword(user.id, currentPassword, newPassword);
+    const success = await supabaseDataService.changePassword(user.id, currentPassword, newPassword);
     
     if (success) {
       setPasswordSuccess(true);
