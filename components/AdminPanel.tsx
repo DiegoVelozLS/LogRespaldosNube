@@ -31,7 +31,7 @@ const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({ isOpen, schedul
             </div>
           </div>
         </div>
-        
+
         <div className="p-6">
           <p className="text-slate-700 mb-2">¿Estás seguro de que deseas eliminar la programación:</p>
           <p className="font-bold text-slate-900 text-lg mb-4">"{scheduleName}"</p>
@@ -83,7 +83,7 @@ const ConfirmDeleteUserModal: React.FC<ConfirmDeleteUserModalProps> = ({ isOpen,
             </div>
           </div>
         </div>
-        
+
         <div className="p-6">
           <p className="text-slate-700 mb-2">¿Estás seguro de que deseas eliminar al usuario:</p>
           <p className="font-bold text-slate-900 text-lg mb-4">"{userName}"</p>
@@ -133,8 +133,8 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
   ];
 
   const toggleDay = (dayId: number) => {
-    setSelectedDays(prev => 
-      prev.includes(dayId) 
+    setSelectedDays(prev =>
+      prev.includes(dayId)
         ? prev.filter(d => d !== dayId)
         : [...prev, dayId].sort()
     );
@@ -154,22 +154,22 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
   return (
     <form onSubmit={handleSubmit} className="p-8 space-y-6">
       <h3 className="text-xl font-bold">{editingSchedule ? 'Editar Programación de Respaldo' : 'Programar Nuevo Respaldo'}</h3>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="block text-sm font-bold text-slate-700">Nombre del respaldo</label>
-          <input 
+          <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Ej: Respaldo BD Producción" 
-            required 
-            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+            placeholder="Ej: Respaldo BD Producción"
+            required
+            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
           />
         </div>
 
         <div className="space-y-2">
           <label className="block text-sm font-bold text-slate-700">Tipo de respaldo</label>
-          <select 
+          <select
             value={type}
             onChange={(e) => setType(e.target.value as BackupType)}
             className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
@@ -194,11 +194,10 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
               key={freq.value}
               type="button"
               onClick={() => setFrequency(freq.value)}
-              className={`p-4 rounded-xl border-2 text-left transition ${
-                frequency === freq.value 
-                  ? 'bg-blue-50 border-blue-500 text-blue-700' 
+              className={`p-4 rounded-xl border-2 text-left transition ${frequency === freq.value
+                  ? 'bg-blue-50 border-blue-500 text-blue-700'
                   : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-              }`}
+                }`}
             >
               <p className="font-bold text-sm">{freq.label}</p>
               <p className="text-xs opacity-70">{freq.desc}</p>
@@ -216,11 +215,10 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
                 key={day.id}
                 type="button"
                 onClick={() => toggleDay(day.id)}
-                className={`p-3 rounded-lg border-2 text-center transition ${
-                  selectedDays.includes(day.id)
+                className={`p-3 rounded-lg border-2 text-center transition ${selectedDays.includes(day.id)
                     ? 'bg-blue-600 border-blue-600 text-white font-bold'
                     : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                }`}
+                  }`}
               >
                 <p className="text-xs font-bold">{day.short}</p>
               </button>
@@ -235,7 +233,7 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
       {frequency === FrequencyType.WEEKLY && (
         <div className="space-y-2 animate-fadeIn">
           <label className="block text-sm font-bold text-slate-700">Día de la semana</label>
-          <select 
+          <select
             value={selectedDays[0] || 1}
             onChange={(e) => setSelectedDays([parseInt(e.target.value)])}
             className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
@@ -249,25 +247,25 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
 
       <div className="space-y-2">
         <label className="block text-sm font-bold text-slate-700">Descripción</label>
-        <input 
+        <input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Breve descripción del respaldo" 
-          className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+          placeholder="Breve descripción del respaldo"
+          className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
         />
       </div>
 
       <div className="flex gap-3 pt-4">
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           disabled={frequency === FrequencyType.CUSTOM && selectedDays.length === 0}
           className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition disabled:bg-slate-400 disabled:cursor-not-allowed"
         >
           {editingSchedule ? 'Actualizar Programación' : 'Guardar Programación'}
         </button>
-        <button 
-          type="button" 
-          onClick={onCancel} 
+        <button
+          type="button"
+          onClick={onCancel}
           className="px-6 py-3 bg-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-300 transition"
         >
           Cancelar
@@ -288,7 +286,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
   const [users, setUsers] = useState<User[]>([]);
   const [activeTab, setActiveTab] = useState<'schedules' | 'stats' | 'users'>(initialTab);
   const [loading, setLoading] = useState(true);
-  
+
   // Forms states
   const [showUserForm, setShowUserForm] = useState(false);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
@@ -344,7 +342,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
       password: fd.get('password') as string,
       role: fd.get('role') as UserRole,
     };
-    
+
+    // Validación de contraseña
+    if (!editingUser && (!userData.password || userData.password.length < 6)) {
+      alert('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+
+    if (editingUser && userData.password && userData.password.length < 6) {
+      alert('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+
     if (editingUser) {
       await supabaseDataService.updateUser(editingUser.id, userData);
     } else {
@@ -381,7 +390,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
           setScheduleToDelete(null);
         }}
       />
-      
+
       <ConfirmDeleteUserModal
         isOpen={deleteUserModalOpen}
         userName={userToDelete ? `${userToDelete.name} ${userToDelete.lastName}` : ''}
@@ -399,12 +408,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
           setUserToDelete(null);
         }}
       />
-      
+
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold text-slate-800">
           {role === UserRole.SUPERVISOR ? 'Estadísticas del Sistema' : 'Centro de Control Admin'}
         </h2>
-        
+
         {role === UserRole.ADMIN && (
           <div className="flex p-1 bg-slate-200 rounded-xl gap-1">
             {[
@@ -427,12 +436,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
       {activeTab === 'schedules' && role === UserRole.ADMIN && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           {showScheduleForm ? (
-            <ScheduleForm 
+            <ScheduleForm
               editingSchedule={editingSchedule}
               onCancel={() => {
                 setShowScheduleForm(false);
                 setEditingSchedule(null);
-              }} 
+              }}
               onSave={async (schedule) => {
                 if (editingSchedule) {
                   await supabaseDataService.updateSchedule(editingSchedule.id, schedule);
@@ -464,8 +473,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
                       </td>
                       <td className="px-6 py-4">
                         <span className="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded uppercase">
-                          {s.frequency === 'CUSTOM' && s.daysOfWeek ? 
-                            `Personalizado: ${s.daysOfWeek.map(d => ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d]).join(', ')}` 
+                          {s.frequency === 'CUSTOM' && s.daysOfWeek ?
+                            `Personalizado: ${s.daysOfWeek.map(d => ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][d]).join(', ')}`
                             : s.frequency === 'DAILY' ? 'Diario' : 'Semanal'}
                         </span>
                       </td>
@@ -482,9 +491,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
                             className="p-2 hover:bg-slate-100 rounded-lg transition"
                           >
                             <svg className="w-5 h-5 text-slate-600" fill="currentColor" viewBox="0 0 16 16">
-                              <circle cx="8" cy="3" r="1.5"/>
-                              <circle cx="8" cy="8" r="1.5"/>
-                              <circle cx="8" cy="13" r="1.5"/>
+                              <circle cx="8" cy="3" r="1.5" />
+                              <circle cx="8" cy="8" r="1.5" />
+                              <circle cx="8" cy="13" r="1.5" />
                             </svg>
                           </button>
                           {menuOpenId === s.id && (
@@ -561,22 +570,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
           </div>
 
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-             <h3 className="text-xl font-bold text-slate-800 mb-6">Logs de Actividad</h3>
-             <div className="space-y-4 overflow-y-auto max-h-[300px] pr-2">
-                {logs.length === 0 ? (
-                  <p className="text-slate-400 italic text-center py-12">Sin actividad reciente.</p>
-                ) : logs.sort((a,b) => b.timestamp.localeCompare(a.timestamp)).map(l => (
-                  <div key={l.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">Log #{l.id.slice(0,4)}</p>
-                      <p className="text-[10px] text-slate-400 uppercase font-bold">{l.userName} • {new Date(l.timestamp).toLocaleString()}</p>
-                    </div>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase border ${STATUS_COLORS[l.status]}`}>
-                      {l.status === 'COMPLETED' ? 'EXITOSO' : l.status === 'WARNING' ? 'NOVEDAD' : 'FALLIDO'}
-                    </span>
+            <h3 className="text-xl font-bold text-slate-800 mb-6">Logs de Actividad</h3>
+            <div className="space-y-4 overflow-y-auto max-h-[300px] pr-2">
+              {logs.length === 0 ? (
+                <p className="text-slate-400 italic text-center py-12">Sin actividad reciente.</p>
+              ) : logs.sort((a, b) => b.timestamp.localeCompare(a.timestamp)).map(l => (
+                <div key={l.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">Log #{l.id.slice(0, 4)}</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold">{l.userName} • {new Date(l.timestamp).toLocaleString()}</p>
                   </div>
-                ))}
-             </div>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase border ${STATUS_COLORS[l.status]}`}>
+                    {l.status === 'COMPLETED' ? 'EXITOSO' : l.status === 'WARNING' ? 'NOVEDAD' : 'FALLIDO'}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -631,9 +640,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
                     className="p-2 hover:bg-slate-200 rounded-lg transition"
                   >
                     <svg className="w-5 h-5 text-slate-600" fill="currentColor" viewBox="0 0 16 16">
-                      <circle cx="8" cy="3" r="1.5"/>
-                      <circle cx="8" cy="8" r="1.5"/>
-                      <circle cx="8" cy="13" r="1.5"/>
+                      <circle cx="8" cy="3" r="1.5" />
+                      <circle cx="8" cy="8" r="1.5" />
+                      <circle cx="8" cy="13" r="1.5" />
                     </svg>
                   </button>
                   {userMenuOpenId === u.id && (

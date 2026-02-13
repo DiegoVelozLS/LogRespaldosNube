@@ -10,28 +10,28 @@ export const MOCK_USERS: User[] = [
 ];
 
 export const MOCK_SCHEDULES: BackupSchedule[] = [
-  { 
-    id: 's1', 
-    name: 'Base de Datos PostgreSQL Principal', 
-    type: BackupType.DATABASE, 
-    frequency: FrequencyType.DAILY, 
-    description: 'Volcado crítico de la base de datos cada medianoche.' 
+  {
+    id: 's1',
+    name: 'Base de Datos PostgreSQL Principal',
+    type: BackupType.DATABASE,
+    frequency: FrequencyType.DAILY,
+    description: 'Volcado crítico de la base de datos cada medianoche.'
   },
-  { 
-    id: 's2', 
-    name: 'Almacenamiento FTP Legado', 
-    type: BackupType.FTP, 
-    frequency: FrequencyType.WEEKLY, 
+  {
+    id: 's2',
+    name: 'Almacenamiento FTP Legado',
+    type: BackupType.FTP,
+    frequency: FrequencyType.WEEKLY,
     daysOfWeek: [1],
-    description: 'Sincronización semanal de activos archivados.' 
+    description: 'Sincronización semanal de activos archivados.'
   },
-  { 
-    id: 's3', 
-    name: 'Respaldo Nube AWS S3', 
-    type: BackupType.CLOUD, 
-    frequency: FrequencyType.CUSTOM, 
+  {
+    id: 's3',
+    name: 'Respaldo Nube AWS S3',
+    type: BackupType.CLOUD,
+    frequency: FrequencyType.CUSTOM,
     daysOfWeek: [1, 3, 5], // Lunes, Miércoles, Viernes
-    description: 'Sincronización de documentos críticos a la nube.' 
+    description: 'Sincronización de documentos críticos a la nube.'
   }
 ];
 
@@ -48,3 +48,5 @@ export const BACKUP_TYPE_ICONS: Record<BackupType, string> = {
   [BackupType.EXTERNAL_DISK]: '💾',
   [BackupType.CLOUD]: '☁️'
 };
+
+export const APP_VERSION = '1.0.0';

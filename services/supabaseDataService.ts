@@ -1,24 +1,25 @@
 
+import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import { BackupSchedule, BackupLog, User, BackupStatus, UserRole, BackupType, FrequencyType } from '../types';
 
 export const supabaseDataService = {
   // ==================== AUTHENTICATION ====================
-  
+
   login: async (email: string, password: string): Promise<User | null> => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      
+
       if (data.user) {
         const { data: profile, error: profileError } = await supabase
           .from('users')
           .select('*')
           .eq('id', data.user.id)
           .single();
-        
+
         if (profileError) throw profileError;
-        
+
         if (profile) {
           return {
             id: profile.id,
@@ -82,7 +83,7 @@ export const supabaseDataService = {
   },
 
   // ==================== USER MANAGEMENT ====================
-  
+
   getUsers: async (): Promise<User[]> => {
     try {
       const { data, error } = await supabase
@@ -108,9 +109,14 @@ export const supabaseDataService = {
 
   saveUser: async (user: { name: string; lastName: string; email: string; password: string; role: UserRole }): Promise<User | null> => {
     try {
-      // Crear usuario en auth.users - Nota: Esto requiere permisos de service_role en producción
-      // Por ahora, vamos a usar la API pública con un registro normal
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Usar un cliente temporal para no cerrar la sesión del admin actual
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const tempSupabase = createClient(supabaseUrl, supabaseAnonKey);
+
+      // Crear usuario en auth.users usando el cliente temporal
+      const { data: authData, error: authError } = await tempSupabase.auth.signUp({
         email: user.email,
         password: user.password,
         options: {
@@ -126,7 +132,7 @@ export const supabaseDataService = {
       if (!authData.user) return null;
 
       // El trigger automáticamente creará el registro en public.users
-      // Esperar un momento y consultar
+      // Esperar un momento y consultar usando el cliente PRINCIPAL (Admin)
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       const { data: profile, error: profileError } = await supabase
@@ -154,19 +160,31 @@ export const supabaseDataService = {
     }
   },
 
-  updateUser: async (id: string, updates: Partial<Omit<User, 'id' | 'email'>>): Promise<boolean> => {
+  updateUser: async (id: string, updates: Partial<Omit<User, 'id' | 'email'>> & { password?: string }): Promise<boolean> => {
     try {
+      // 1. Actualizar datos del perfil (public.users)
       const dbUpdates: Record<string, any> = {};
       if (updates.name) dbUpdates.name = updates.name;
       if (updates.lastName) dbUpdates.last_name = updates.lastName;
       if (updates.role) dbUpdates.role = updates.role;
 
-      const { error } = await supabase
+      const { error: profileError } = await supabase
         .from('users')
         .update(dbUpdates)
         .eq('id', id);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // 2. Si hay contraseña, actualizarla usando RPC seguro (auth.users)
+      if (updates.password && updates.password.length >= 6) {
+        const { error: passwordError } = await supabase.rpc('admin_update_password', {
+          target_user_id: id,
+          new_password: updates.password
+        });
+
+        if (passwordError) throw passwordError;
+      }
+
       return true;
     } catch (error) {
       console.error('Update user error:', error);
@@ -176,12 +194,9 @@ export const supabaseDataService = {
 
   deleteUser: async (id: string): Promise<boolean> => {
     try {
-      // Eliminar primero de public.users (el CASCADE se encargará de auth.users si aplica)
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', id);
-      
+      // Usar la función RPC segura para eliminar de auth.users y public.users
+      const { error } = await supabase.rpc('delete_user_completely', { target_user_id: id });
+
       if (error) throw error;
       return true;
     } catch (error) {
@@ -191,7 +206,7 @@ export const supabaseDataService = {
   },
 
   // ==================== SCHEDULES ====================
-  
+
   getSchedules: async (): Promise<BackupSchedule[]> => {
     try {
       const { data, error } = await supabase
@@ -285,7 +300,7 @@ export const supabaseDataService = {
   },
 
   // ==================== LOGS ====================
-  
+
   getLogs: async (): Promise<BackupLog[]> => {
     try {
       const { data, error } = await supabase
@@ -373,7 +388,7 @@ export const supabaseDataService = {
   },
 
   // ==================== HELPER FUNCTIONS ====================
-  
+
   getTasksForDate: async (date: Date): Promise<{ schedule: BackupSchedule; log?: BackupLog }[]> => {
     try {
       const schedules = await supabaseDataService.getSchedules();
