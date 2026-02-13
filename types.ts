@@ -31,7 +31,8 @@ export enum BackupType {
   DATABASE = 'DATABASE',
   FTP = 'FTP',
   EXTERNAL_DISK = 'EXTERNAL_DISK',
-  CLOUD = 'CLOUD'
+  CLOUD = 'CLOUD',
+  DELETE_BACKUP = 'DELETE_BACKUP'
 }
 
 export interface BackupSchedule {

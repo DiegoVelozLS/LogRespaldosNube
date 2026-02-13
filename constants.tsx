@@ -46,7 +46,8 @@ export const BACKUP_TYPE_ICONS: Record<BackupType, string> = {
   [BackupType.DATABASE]: '🗄️',
   [BackupType.FTP]: '📁',
   [BackupType.EXTERNAL_DISK]: '💾',
-  [BackupType.CLOUD]: '☁️'
+  [BackupType.CLOUD]: '☁️',
+  [BackupType.DELETE_BACKUP]: '🗑️'
 };
 
 export const APP_VERSION = '1.0.0';

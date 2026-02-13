@@ -178,6 +178,7 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
             <option value={BackupType.CLOUD}>☁️ Nube</option>
             <option value={BackupType.FTP}>🌐 FTP</option>
             <option value={BackupType.EXTERNAL_DISK}>💾 Disco Externo</option>
+            <option value={BackupType.DELETE_BACKUP}>🗑️ Eliminar Respaldo</option>
           </select>
         </div>
       </div>
@@ -195,8 +196,8 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
               type="button"
               onClick={() => setFrequency(freq.value)}
               className={`p-4 rounded-xl border-2 text-left transition ${frequency === freq.value
-                  ? 'bg-blue-50 border-blue-500 text-blue-700'
-                  : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                ? 'bg-blue-50 border-blue-500 text-blue-700'
+                : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                 }`}
             >
               <p className="font-bold text-sm">{freq.label}</p>
@@ -216,8 +217,8 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
                 type="button"
                 onClick={() => toggleDay(day.id)}
                 className={`p-3 rounded-lg border-2 text-center transition ${selectedDays.includes(day.id)
-                    ? 'bg-blue-600 border-blue-600 text-white font-bold'
-                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                  ? 'bg-blue-600 border-blue-600 text-white font-bold'
+                  : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                   }`}
               >
                 <p className="text-xs font-bold">{day.short}</p>
