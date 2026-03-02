@@ -1,7 +1,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
-import { BackupSchedule, BackupLog, User, BackupStatus, UserRole, BackupType, FrequencyType, ClientEntry, Server } from '../types';
+import { BackupSchedule, BackupLog, User, BackupStatus, Role, UserRole, BackupType, FrequencyType, ClientEntry, Server } from '../types';
 
 export const supabaseDataService = {
   // ==================== AUTHENTICATION ====================
@@ -14,19 +14,25 @@ export const supabaseDataService = {
       if (data.user) {
         const { data: profile, error: profileError } = await supabase
           .from('users')
-          .select('*')
+          .select(`
+            *,
+            roles(id, name, description, role_permissions(permission_key))
+          `)
           .eq('id', data.user.id)
           .single();
 
         if (profileError) throw profileError;
 
         if (profile) {
+          const roleData = profile.roles as any;
           return {
             id: profile.id,
             name: profile.name,
             lastName: profile.last_name,
             email: profile.email,
-            role: profile.role as UserRole
+            role: roleData?.name || profile.role,
+            roleId: profile.role_id,
+            permissions: roleData?.role_permissions?.map((p: any) => p.permission_key) || []
           };
         }
       }
@@ -44,19 +50,25 @@ export const supabaseDataService = {
 
       const { data: profile, error } = await supabase
         .from('users')
-        .select('*')
+        .select(`
+          *,
+          roles(id, name, description, role_permissions(permission_key))
+        `)
         .eq('id', user.id)
         .single();
 
       if (error) throw error;
 
       if (profile) {
+        const roleData = profile.roles as any;
         return {
           id: profile.id,
           name: profile.name,
           lastName: profile.last_name,
           email: profile.email,
-          role: profile.role as UserRole
+          role: roleData?.name || profile.role,
+          roleId: profile.role_id,
+          permissions: roleData?.role_permissions?.map((p: any) => p.permission_key) || []
         };
       }
       return null;
@@ -130,25 +142,154 @@ export const supabaseDataService = {
     }
   },
 
+  // ==================== ROLES ====================
+
+  getRoles: async (): Promise<Role[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('roles')
+        .select('*, role_permissions(permission_key)')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      if (!data) return [];
+
+      return data.map(r => ({
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        permissions: (r.role_permissions as any[] || []).map(p => p.permission_key)
+      }));
+    } catch (error) {
+      console.error('Get roles error:', error);
+      return [];
+    }
+  },
+
+  saveRole: async (role: Omit<Role, 'id'>): Promise<Role | null> => {
+    try {
+      // 1. Crear el rol
+      console.log('Attempting to insert role:', { name: role.name, description: role.description });
+      const { data, error } = await supabase
+        .from('roles')
+        .insert({ name: role.name, description: role.description })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase error inserting role:', error);
+        throw error;
+      }
+      if (!data) return null;
+      console.log('Role inserted successfully:', data);
+
+      // 2. Insertar permisos
+      if (role.permissions && role.permissions.length > 0) {
+        const permsEntries = role.permissions.map(p => ({
+          role_id: data.id,
+          permission_key: p
+        }));
+        const { error: permsError } = await supabase
+          .from('role_permissions')
+          .insert(permsEntries);
+        if (permsError) throw permsError;
+      }
+
+      return {
+        id: data.id,
+        name: data.name,
+        description: data.description,
+        permissions: role.permissions
+      };
+    } catch (error: any) {
+      console.error('Save role error full detail:', error);
+      alert('Error al guardar el rol: ' + (error?.message || 'Error desconocido'));
+      return null;
+    }
+  },
+
+  updateRole: async (id: string, updates: Partial<Role>): Promise<boolean> => {
+    try {
+      // 1. Actualizar datos básicos si existen
+      if (updates.name || updates.description) {
+        const { error: roleError } = await supabase
+          .from('roles')
+          .update({ name: updates.name, description: updates.description })
+          .eq('id', id);
+        if (roleError) throw roleError;
+      }
+
+      // 2. Actualizar permisos si existen
+      if (updates.permissions) {
+        // Borrar anteriores
+        const { error: delError } = await supabase
+          .from('role_permissions')
+          .delete()
+          .eq('role_id', id);
+        if (delError) throw delError;
+
+        // Insertar nuevos
+        if (updates.permissions.length > 0) {
+          const permsEntries = updates.permissions.map(p => ({
+            role_id: id,
+            permission_key: p
+          }));
+          const { error: insError } = await supabase
+            .from('role_permissions')
+            .insert(permsEntries);
+          if (insError) throw insError;
+        }
+      }
+
+      return true;
+    } catch (error: any) {
+      console.error('Update role error full detail:', error);
+      alert('Error al actualizar el rol: ' + (error?.message || 'Error desconocido'));
+      return false;
+    }
+  },
+
+  deleteRole: async (id: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('roles')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Delete role error:', error);
+      return false;
+    }
+  },
+
   // ==================== USERS & AUTH ====================
 
   getUsers: async (): Promise<User[]> => {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('*')
+        .select(`
+          *,
+          roles(id, name, description, role_permissions(permission_key))
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       if (!data) return [];
 
-      return data.map(u => ({
-        id: u.id,
-        name: u.name,
-        lastName: u.last_name,
-        email: u.email,
-        role: u.role as UserRole
-      }));
+      return data.map(u => {
+        const roleData = u.roles as any;
+        return {
+          id: u.id,
+          name: u.name,
+          lastName: u.last_name,
+          email: u.email,
+          role: roleData?.name || u.role,
+          roleId: u.role_id,
+          permissions: roleData?.role_permissions?.map((p: any) => p.permission_key) || []
+        };
+      });
     } catch (error) {
       console.error('Get users error:', error);
       return [];
@@ -171,7 +312,7 @@ export const supabaseDataService = {
           data: {
             name: user.name,
             last_name: user.lastName,
-            role: user.role
+            role: user.role, // Mantenemos el nombre del rol por compatibilidad con el trigger anterior
           }
         }
       });
@@ -215,6 +356,7 @@ export const supabaseDataService = {
       if (updates.name) dbUpdates.name = updates.name;
       if (updates.lastName) dbUpdates.last_name = updates.lastName;
       if (updates.role) dbUpdates.role = updates.role;
+      if ((updates as any).roleId) dbUpdates.role_id = (updates as any).roleId;
 
       const { error: profileError } = await supabase
         .from('users')

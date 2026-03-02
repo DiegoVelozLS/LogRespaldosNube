@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { BackupSchedule, BackupLog, BackupType, FrequencyType, UserRole, User, Server } from '../types';
+import { BackupSchedule, BackupLog, BackupType, FrequencyType, UserRole, User, Server, Role } from '../types';
 import { supabaseDataService } from '../services/supabaseDataService';
 import { BACKUP_TYPE_ICONS, STATUS_COLORS } from '../constants';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 interface ConfirmDeleteModalProps {
   isOpen: boolean;
@@ -276,9 +275,92 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
   );
 };
 
+interface RoleFormProps {
+  onSave: (role: Omit<Role, 'id'>) => void;
+  onCancel: () => void;
+  editingRole?: Role | null;
+}
+
+const RoleForm: React.FC<RoleFormProps> = ({ onSave, onCancel, editingRole }) => {
+  const [name, setName] = useState(editingRole?.name || '');
+  const [description, setDescription] = useState(editingRole?.description || '');
+  const [permissions, setPermissions] = useState<string[]>(editingRole?.permissions || []);
+
+  const availableFeatures = [
+    { key: 'dashboard', label: 'Panel Principal' },
+    { key: 'calendar', label: 'Calendario' },
+    { key: 'register', label: 'Registrar Respaldo' },
+    { key: 'clients', label: 'Directorio' },
+    { key: 'reports', label: 'Reportes' },
+    { key: 'admin', label: 'Administración' },
+  ];
+
+  const togglePermission = (key: string) => {
+    setPermissions(prev =>
+      prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
+    );
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({ name, description, permissions });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="p-8 space-y-6">
+      <h3 className="text-xl font-bold">{editingRole ? 'Editar Rol' : 'Crear Nuevo Rol'}</h3>
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <label className="block text-sm font-bold text-slate-700">Nombre del Rol</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Ej: Talento Humano"
+            required
+            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="block text-sm font-bold text-slate-700">Descripción</label>
+          <input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Ej: Solo visualización de reportes"
+            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="block text-sm font-bold text-slate-700 mb-2">Permisos de Acceso</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {availableFeatures.map(feature => (
+              <label key={feature.key} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition border border-slate-200">
+                <input
+                  type="checkbox"
+                  checked={permissions.includes(feature.key)}
+                  onChange={() => togglePermission(feature.key)}
+                  className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-slate-700">{feature.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-3 pt-4">
+        <button type="submit" className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition">
+          {editingRole ? 'Actualizar Rol' : 'Guardar Rol'}
+        </button>
+        <button type="button" onClick={onCancel} className="px-6 py-3 bg-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-300 transition">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+};
+
 interface AdminPanelProps {
-  role: UserRole;
-  initialTab?: 'schedules' | 'stats' | 'users' | 'servers';
+  role: string;
+  initialTab?: 'schedules' | 'users' | 'servers' | 'roles';
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' }) => {
@@ -286,17 +368,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
   const [logs, setLogs] = useState<BackupLog[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [servers, setServers] = useState<Server[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [newServerName, setNewServerName] = useState('');
-  const [activeTab, setActiveTab] = useState<'schedules' | 'stats' | 'users' | 'servers'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'schedules' | 'users' | 'servers' | 'roles'>(initialTab);
   const [loading, setLoading] = useState(true);
 
   // Forms states
   const [showUserForm, setShowUserForm] = useState(false);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [showRoleForm, setShowRoleForm] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<BackupSchedule | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [userMenuOpenId, setUserMenuOpenId] = useState<string | null>(null);
+  const [roleMenuOpenId, setRoleMenuOpenId] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [scheduleToDelete, setScheduleToDelete] = useState<BackupSchedule | null>(null);
   const [deleteUserModalOpen, setDeleteUserModalOpen] = useState(false);
@@ -305,37 +391,34 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      const [schedulesData, logsData, usersData, serversData] = await Promise.all([
+      const [schedulesData, logsData, usersData, serversData, rolesData] = await Promise.all([
         supabaseDataService.getSchedules(),
         supabaseDataService.getLogs(),
         supabaseDataService.getUsers(),
-        supabaseDataService.getServers()
+        supabaseDataService.getServers(),
+        supabaseDataService.getRoles()
       ]);
       setSchedules(schedulesData);
       setLogs(logsData);
       setUsers(usersData);
       setServers(serversData);
-      if (role === UserRole.SUPERVISOR) setActiveTab('stats');
+      setRoles(rolesData);
       setLoading(false);
     };
     loadData();
   }, [role]);
 
   useEffect(() => {
-    const handleClickOutside = () => setMenuOpenId(null);
-    if (menuOpenId) {
+    const handleClickOutside = () => {
+      setMenuOpenId(null);
+      setUserMenuOpenId(null);
+      setRoleMenuOpenId(null);
+    };
+    if (menuOpenId || userMenuOpenId || roleMenuOpenId) {
       document.addEventListener('click', handleClickOutside);
       return () => document.removeEventListener('click', handleClickOutside);
     }
-  }, [menuOpenId]);
-
-  useEffect(() => {
-    const handleClickOutside = () => setUserMenuOpenId(null);
-    if (userMenuOpenId) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [userMenuOpenId]);
+  }, [menuOpenId, userMenuOpenId, roleMenuOpenId]);
 
   const handleCreateUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -345,8 +428,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
       lastName: fd.get('lastName') as string,
       email: fd.get('email') as string,
       password: fd.get('password') as string,
-      role: fd.get('role') as UserRole,
+      role: '', // Se llenará con roleId
+      roleId: fd.get('roleId') as string,
     };
+
+    // Obtener el nombre del rol para compatibilidad
+    const selectedRole = roles.find(r => r.id === userData.roleId);
+    userData.role = selectedRole?.name || '';
 
     // Validación de contraseña
     if (!editingUser && (!userData.password || userData.password.length < 6)) {
@@ -360,9 +448,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
     }
 
     if (editingUser) {
-      await supabaseDataService.updateUser(editingUser.id, userData);
+      await supabaseDataService.updateUser(editingUser.id, userData as any);
     } else {
-      await supabaseDataService.saveUser(userData);
+      await supabaseDataService.saveUser(userData as any);
     }
     const updatedUsers = await supabaseDataService.getUsers();
     setUsers(updatedUsers);
@@ -431,14 +519,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
 
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold text-slate-800">
-          {role === UserRole.SUPERVISOR ? 'Estadísticas del Sistema' : 'Centro de Control Admin'}
+          Centro de Control Admin
         </h2>
 
-        {role === UserRole.ADMIN && (
+        {role === 'ADMIN' && (
           <div className="flex p-1 bg-slate-200 rounded-xl gap-1">
             {[
               { id: 'schedules', label: 'Programación' },
-              { id: 'stats', label: 'Estadísticas' },
+              { id: 'users', label: 'Usuarios' },
+              { id: 'roles', label: 'Roles' },
+              { id: 'servers', label: 'Servidores' },
             ].map((t) => (
               <button
                 key={t.id}
@@ -448,22 +538,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
                 {t.label}
               </button>
             ))}
-            {role === UserRole.ADMIN && (
-              <>
-                <button
-                  onClick={() => setActiveTab('users')}
-                  className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'users' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  Usuarios
-                </button>
-                <button
-                  onClick={() => setActiveTab('servers')}
-                  className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'servers' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  Servidores
-                </button>
-              </>
-            )}
           </div>
         )}
       </div>
@@ -580,48 +654,116 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
         </div>
       )}
 
-      {activeTab === 'stats' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-            <h3 className="text-xl font-bold text-slate-800 mb-6">Desempeño Global</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={statusStats} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                    {statusStats.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex justify-around mt-4">
-              {statusStats.map(s => (
-                <div key={s.name} className="text-center">
-                  <p className="text-xs font-bold text-slate-400 uppercase">{s.name}</p>
-                  <p className="text-lg font-bold" style={{ color: s.color }}>{s.value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+      {activeTab === 'roles' && role === 'ADMIN' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          {showRoleForm ? (
+            <RoleForm
+              editingRole={editingRole}
+              onCancel={() => { setShowRoleForm(false); setEditingRole(null); }}
+              onSave={async (roleData) => {
+                let success = false;
+                if (editingRole) {
+                  success = await supabaseDataService.updateRole(editingRole.id, roleData);
+                } else {
+                  const newRole = await supabaseDataService.saveRole(roleData);
+                  success = !!newRole;
+                }
 
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-            <h3 className="text-xl font-bold text-slate-800 mb-6">Logs de Actividad</h3>
-            <div className="space-y-4 overflow-y-auto max-h-[300px] pr-2">
-              {logs.length === 0 ? (
-                <p className="text-slate-400 italic text-center py-12">Sin actividad reciente.</p>
-              ) : logs.sort((a, b) => b.timestamp.localeCompare(a.timestamp)).map(l => (
-                <div key={l.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">Log #{l.id.slice(0, 4)}</p>
-                    <p className="text-[10px] text-slate-400 uppercase font-bold">{l.userName} • {new Date(l.timestamp).toLocaleString()}</p>
-                  </div>
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase border ${STATUS_COLORS[l.status]}`}>
-                    {l.status === 'COMPLETED' ? 'EXITOSO' : l.status === 'WARNING' ? 'NOVEDAD' : 'FALLIDO'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+                if (success) {
+                  alert(editingRole ? 'Rol actualizado con éxito' : 'Rol creado con éxito');
+                  const updatedRoles = await supabaseDataService.getRoles();
+                  setRoles(updatedRoles);
+                  setShowRoleForm(false);
+                  setEditingRole(null);
+                }
+              }}
+            />
+          ) : (
+            <>
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Nombre del Rol</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Descripción</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Permisos</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {roles.map((r) => (
+                    <tr key={r.id} className="hover:bg-slate-50 transition">
+                      <td className="px-6 py-4 font-bold text-slate-800">{r.name}</td>
+                      <td className="px-6 py-4 text-sm text-slate-500">{r.description}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {r.permissions?.map(p => (
+                            <span key={p} className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded uppercase">
+                              {p}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="relative inline-block">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRoleMenuOpenId(roleMenuOpenId === r.id ? null : r.id);
+                            }}
+                            className="p-2 hover:bg-slate-100 rounded-lg transition"
+                          >
+                            <svg className="w-5 h-5 text-slate-600" fill="currentColor" viewBox="0 0 16 16">
+                              <circle cx="8" cy="3" r="1.5" />
+                              <circle cx="8" cy="8" r="1.5" />
+                              <circle cx="8" cy="13" r="1.5" />
+                            </svg>
+                          </button>
+                          {roleMenuOpenId === r.id && (
+                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-10 overflow-hidden">
+                              <button
+                                onClick={() => {
+                                  setEditingRole(r);
+                                  setShowRoleForm(true);
+                                  setRoleMenuOpenId(null);
+                                }}
+                                className="w-full text-left px-4 py-3 hover:bg-slate-50 transition flex items-center gap-3 text-sm"
+                              >
+                                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                <span className="font-medium text-slate-700">Editar</span>
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (confirm('¿Estás seguro de eliminar este rol?')) {
+                                    await supabaseDataService.deleteRole(r.id);
+                                    const updatedRoles = await supabaseDataService.getRoles();
+                                    setRoles(updatedRoles);
+                                  }
+                                  setRoleMenuOpenId(null);
+                                }}
+                                className="w-full text-left px-4 py-3 hover:bg-red-50 transition flex items-center gap-3 text-sm border-t border-slate-100"
+                              >
+                                <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span className="font-medium text-red-600">Eliminar</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="p-4 bg-slate-50 border-t border-slate-100">
+                <button onClick={() => { setEditingRole(null); setShowRoleForm(true); }} className="w-full py-3 bg-white border-2 border-dashed border-slate-300 rounded-xl text-slate-500 font-bold hover:bg-slate-100 transition">
+                  + Crear Nuevo Rol
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -642,10 +784,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
                 <input name="lastName" defaultValue={editingUser?.lastName} placeholder="Apellido" required className="p-2 border rounded-lg bg-white" />
                 <input name="email" type="email" defaultValue={editingUser?.email} placeholder="Correo (Username)" required className="p-2 border rounded-lg bg-white" />
                 <input name="password" type="password" placeholder={editingUser ? 'Nueva contraseña (dejar vacío para mantener)' : 'Contraseña'} required={!editingUser} className="p-2 border rounded-lg bg-white" />
-                <select name="role" defaultValue={editingUser?.role} className="p-2 border rounded-lg bg-white">
-                  <option value={UserRole.ADMIN}>Administrador</option>
-                  <option value={UserRole.TECH}>Técnico</option>
-                  <option value={UserRole.SUPERVISOR}>Supervisor</option>
+                <select name="roleId" defaultValue={editingUser?.roleId} className="p-2 border rounded-lg bg-white">
+                  <option value="">Seleccionar Rol</option>
+                  {roles.map(r => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
                 </select>
               </div>
               <div className="flex gap-2">

@@ -10,13 +10,48 @@ export type Json =
 export interface Database {
     public: {
         Tables: {
+            roles: {
+                Row: {
+                    id: string
+                    name: string
+                    description: string | null
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    name: string
+                    description?: string | null
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    name?: string
+                    description?: string | null
+                    created_at?: string
+                }
+            }
+            role_permissions: {
+                Row: {
+                    role_id: string
+                    permission_key: string
+                }
+                Insert: {
+                    role_id: string
+                    permission_key: string
+                }
+                Update: {
+                    role_id?: string
+                    permission_key?: string
+                }
+            }
             users: {
                 Row: {
                     id: string
                     email: string
                     name: string
                     last_name: string
-                    role: 'ADMIN' | 'TECH' | 'SUPERVISOR'
+                    role: string
+                    role_id: string | null
                     created_at: string
                     updated_at: string
                 }
@@ -25,7 +60,8 @@ export interface Database {
                     email: string
                     name?: string
                     last_name?: string
-                    role?: 'ADMIN' | 'TECH' | 'SUPERVISOR'
+                    role?: string
+                    role_id?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -34,17 +70,35 @@ export interface Database {
                     email?: string
                     name?: string
                     last_name?: string
-                    role?: 'ADMIN' | 'TECH' | 'SUPERVISOR'
+                    role?: string
+                    role_id?: string | null
                     created_at?: string
                     updated_at?: string
+                }
+            }
+            servers: {
+                Row: {
+                    id: string
+                    name: string
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    name: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    name?: string
+                    created_at?: string
                 }
             }
             backup_schedules: {
                 Row: {
                     id: string
                     name: string
-                    type: 'DATABASE' | 'FTP' | 'EXTERNAL_DISK' | 'CLOUD'
-                    frequency: 'DAILY' | 'WEEKLY' | 'CUSTOM'
+                    type: string
+                    frequency: string
                     days_of_week: number[] | null
                     description: string | null
                     created_at: string
@@ -53,8 +107,8 @@ export interface Database {
                 Insert: {
                     id?: string
                     name: string
-                    type: 'DATABASE' | 'FTP' | 'EXTERNAL_DISK' | 'CLOUD'
-                    frequency: 'DAILY' | 'WEEKLY' | 'CUSTOM'
+                    type: string
+                    frequency: string
                     days_of_week?: number[] | null
                     description?: string | null
                     created_at?: string
@@ -63,8 +117,8 @@ export interface Database {
                 Update: {
                     id?: string
                     name?: string
-                    type?: 'DATABASE' | 'FTP' | 'EXTERNAL_DISK' | 'CLOUD'
-                    frequency?: 'DAILY' | 'WEEKLY' | 'CUSTOM'
+                    type?: string
+                    frequency?: string
                     days_of_week?: number[] | null
                     description?: string | null
                     created_at?: string
@@ -76,7 +130,7 @@ export interface Database {
                     id: string
                     schedule_id: string
                     user_id: string | null
-                    status: 'PENDING' | 'COMPLETED' | 'WARNING' | 'FAILED'
+                    status: string
                     notes: string | null
                     date_str: string
                     timestamp: string
@@ -86,7 +140,7 @@ export interface Database {
                     id?: string
                     schedule_id: string
                     user_id?: string | null
-                    status: 'PENDING' | 'COMPLETED' | 'WARNING' | 'FAILED'
+                    status: string
                     notes?: string | null
                     date_str: string
                     timestamp?: string
@@ -96,7 +150,7 @@ export interface Database {
                     id?: string
                     schedule_id?: string
                     user_id?: string | null
-                    status?: 'PENDING' | 'COMPLETED' | 'WARNING' | 'FAILED'
+                    status?: string
                     notes?: string | null
                     date_str?: string
                     timestamp?: string

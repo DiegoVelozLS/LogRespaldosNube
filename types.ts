@@ -5,13 +5,22 @@ export enum UserRole {
   SUPERVISOR = 'SUPERVISOR'
 }
 
+export interface Role {
+  id: string;
+  name: string;
+  description?: string;
+  permissions?: string[];
+}
+
 export interface User {
   id: string;
   name: string;
   lastName: string;
   email: string;
   password?: string;
-  role: UserRole;
+  role: string; // Cambio de UserRole a string para ser dinámico
+  roleId?: string;
+  permissions?: string[]; // Lista de keys: 'dashboard', 'calendar', etc.
 }
 
 export enum BackupStatus {
