@@ -15,6 +15,12 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ user }) => {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+
+  // Pending filter state (what user is setting)
+  const [pendingPerson, setPendingPerson] = useState('');
+  const [pendingStatus, setPendingStatus] = useState('');
+  const [pendingDateFrom, setPendingDateFrom] = useState('');
+  const [pendingDateTo, setPendingDateTo] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -31,6 +37,10 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ user }) => {
     setFilterStatus('');
     setFilterDateFrom('');
     setFilterDateTo('');
+    setPendingPerson('');
+    setPendingStatus('');
+    setPendingDateFrom('');
+    setPendingDateTo('');
     setLoading(false);
   };
 
@@ -70,8 +80,8 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ user }) => {
 
   const getMonthName = (month: number) => {
     if (month === -1) return 'Todo el año';
-    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
-                    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     return months[month];
   };
 
@@ -100,10 +110,10 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ user }) => {
   const filteredData = reportData.filter(log => {
     // Filter by person
     if (filterPerson && log.userName !== filterPerson) return false;
-    
+
     // Filter by status
     if (filterStatus && log.status !== filterStatus) return false;
-    
+
     // Filter by date range
     const logDate = new Date(log.timestamp);
     if (filterDateFrom) {
@@ -116,15 +126,26 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ user }) => {
       toDate.setHours(23, 59, 59, 999);
       if (logDate > toDate) return false;
     }
-    
+
     return true;
   });
+
+  const handleApplyFilters = () => {
+    setFilterPerson(pendingPerson);
+    setFilterStatus(pendingStatus);
+    setFilterDateFrom(pendingDateFrom);
+    setFilterDateTo(pendingDateTo);
+  };
 
   const clearFilters = () => {
     setFilterPerson('');
     setFilterStatus('');
     setFilterDateFrom('');
     setFilterDateTo('');
+    setPendingPerson('');
+    setPendingStatus('');
+    setPendingDateFrom('');
+    setPendingDateTo('');
   };
 
   return (
@@ -137,7 +158,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ user }) => {
           </h2>
           <p className="text-slate-500">Registro detallado de respaldos realizados</p>
         </div>
-        
+
         <button
           onClick={exportToCSV}
           className="px-4 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition flex items-center gap-2"
@@ -191,10 +212,10 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ user }) => {
                 {[filterPerson, filterStatus, filterDateFrom, filterDateTo].filter(Boolean).length}
               </span>
             )}
-            <svg 
-              className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} 
-              fill="none" 
-              stroke="currentColor" 
+            <svg
+              className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
               viewBox="0 0 24 24"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -216,14 +237,14 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ user }) => {
                 </button>
               )}
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Person Filter */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Persona</label>
                 <select
-                  value={filterPerson}
-                  onChange={(e) => setFilterPerson(e.target.value)}
+                  value={pendingPerson}
+                  onChange={(e) => setPendingPerson(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                 >
                   <option value="">Todas las personas</option>
@@ -237,8 +258,8 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ user }) => {
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Estado</label>
                 <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
+                  value={pendingStatus}
+                  onChange={(e) => setPendingStatus(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                 >
                   <option value="">Todos los estados</option>
@@ -253,8 +274,8 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ user }) => {
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha desde</label>
                 <input
                   type="date"
-                  value={filterDateFrom}
-                  onChange={(e) => setFilterDateFrom(e.target.value)}
+                  value={pendingDateFrom}
+                  onChange={(e) => setPendingDateFrom(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                 />
               </div>
@@ -264,11 +285,35 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ user }) => {
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha hasta</label>
                 <input
                   type="date"
-                  value={filterDateTo}
-                  onChange={(e) => setFilterDateTo(e.target.value)}
+                  value={pendingDateTo}
+                  onChange={(e) => setPendingDateTo(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                 />
               </div>
+            </div>
+
+            {/* Actions: Buscar / Limpiar */}
+            <div className="flex items-center gap-3 mt-4 pt-3 border-t border-slate-100">
+              <button
+                onClick={handleApplyFilters}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl font-bold text-sm transition shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Buscar
+              </button>
+              {(filterPerson || filterStatus || filterDateFrom || filterDateTo) && (
+                <button
+                  onClick={clearFilters}
+                  className="flex items-center gap-2 text-slate-500 hover:text-red-600 px-4 py-2 rounded-xl font-semibold text-sm transition border border-slate-200 hover:border-red-200 bg-white"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Limpiar
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -323,7 +368,7 @@ const MonthlyReport: React.FC<MonthlyReportProps> = ({ user }) => {
             </tbody>
           </table>
         </div>
-        
+
         {/* Footer with count */}
         {filteredData.length > 0 && (
           <div className="px-6 py-3 bg-slate-50 border-t border-slate-200">

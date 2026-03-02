@@ -5,9 +5,21 @@
 -- 1. LIMPIEZA TOTAL (Borrar tablas anteriores)
 DROP TABLE IF EXISTS public.backup_logs CASCADE;
 DROP TABLE IF EXISTS public.backup_schedules CASCADE;
+DROP TABLE IF EXISTS public.clients CASCADE;
+DROP TABLE IF EXISTS public.servers CASCADE;
 DROP TABLE IF EXISTS public.users CASCADE;
 
 -- 2. CREACIÓN DE TABLAS
+
+-- Tabla SERVIDORES
+CREATE TABLE public.servers (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insertar servidores iniciales
+INSERT INTO public.servers (name) VALUES ('Servidor 1'), ('Servidor 2');
 
 -- Tabla USERS (Perfiles extendidos)
 CREATE TABLE public.users (
@@ -24,10 +36,25 @@ CREATE TABLE public.users (
 CREATE TABLE public.backup_schedules (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     name TEXT NOT NULL,
-    type TEXT NOT NULL CHECK (type IN ('DATABASE', 'FTP', 'EXTERNAL_DISK', 'CLOUD')),
+    type TEXT NOT NULL CHECK (type IN ('DATABASE', 'FTP', 'EXTERNAL_DISK', 'CLOUD', 'DELETE_BACKUP')),
     frequency TEXT NOT NULL CHECK (frequency IN ('DAILY', 'WEEKLY', 'CUSTOM')),
     days_of_week INTEGER[], -- Array de números 0-6 (0=Domingo)
     description TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Tabla CLIENTES (Directorio)
+CREATE TABLE public.clients (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    client_name TEXT NOT NULL,
+    client_ruc TEXT NOT NULL,
+    owner_company TEXT NOT NULL,
+    owner_ruc TEXT NOT NULL,
+    db_name TEXT NOT NULL,
+    server TEXT NOT NULL,
+    group_code TEXT NOT NULL,
+    subscription_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

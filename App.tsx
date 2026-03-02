@@ -10,10 +10,11 @@ import BackupRegistration from './components/BackupRegistration';
 import AdminPanel from './components/AdminPanel';
 import AccountProfile from './components/AccountProfile';
 import MonthlyReport from './components/MonthlyReport';
+import ClientDirectory from './components/ClientDirectory';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'register' | 'admin' | 'stats' | 'profile' | 'reports'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'register' | 'admin' | 'stats' | 'profile' | 'reports' | 'clients'>('dashboard');
   const [pendingAlerts, setPendingAlerts] = useState<number>(0);
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
@@ -136,6 +137,14 @@ const App: React.FC = () => {
             </button>
           )}
 
+          {/* Directorio de Clientes - visible para todos */}
+          <button onClick={() => setActiveTab('clients')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'clients' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            <span className="font-medium">Directorio</span>
+          </button>
+
           {/* Reportes para todos los roles */}
           <button onClick={() => setActiveTab('reports')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'reports' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -183,6 +192,7 @@ const App: React.FC = () => {
           {activeTab === 'admin' && <AdminPanel role={user.role} />}
           {activeTab === 'stats' && <AdminPanel role={user.role} initialTab="stats" />}
           {activeTab === 'profile' && <AccountProfile user={user} />}
+          {activeTab === 'clients' && <ClientDirectory role={user.role} />}
           {activeTab === 'reports' && <MonthlyReport user={user} />}
         </div>
       </main>

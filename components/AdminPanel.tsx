@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { BackupSchedule, BackupLog, BackupType, FrequencyType, UserRole, User } from '../types';
+import { BackupSchedule, BackupLog, BackupType, FrequencyType, UserRole, User, Server } from '../types';
 import { supabaseDataService } from '../services/supabaseDataService';
 import { BACKUP_TYPE_ICONS, STATUS_COLORS } from '../constants';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -278,14 +278,16 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
 
 interface AdminPanelProps {
   role: UserRole;
-  initialTab?: 'schedules' | 'stats' | 'users';
+  initialTab?: 'schedules' | 'stats' | 'users' | 'servers';
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' }) => {
   const [schedules, setSchedules] = useState<BackupSchedule[]>([]);
   const [logs, setLogs] = useState<BackupLog[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [activeTab, setActiveTab] = useState<'schedules' | 'stats' | 'users'>(initialTab);
+  const [servers, setServers] = useState<Server[]>([]);
+  const [newServerName, setNewServerName] = useState('');
+  const [activeTab, setActiveTab] = useState<'schedules' | 'stats' | 'users' | 'servers'>(initialTab);
   const [loading, setLoading] = useState(true);
 
   // Forms states
@@ -303,14 +305,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      const [schedulesData, logsData, usersData] = await Promise.all([
+      const [schedulesData, logsData, usersData, serversData] = await Promise.all([
         supabaseDataService.getSchedules(),
         supabaseDataService.getLogs(),
-        supabaseDataService.getUsers()
+        supabaseDataService.getUsers(),
+        supabaseDataService.getServers()
       ]);
       setSchedules(schedulesData);
       setLogs(logsData);
       setUsers(usersData);
+      setServers(serversData);
       if (role === UserRole.SUPERVISOR) setActiveTab('stats');
       setLoading(false);
     };
@@ -364,6 +368,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
     setUsers(updatedUsers);
     setShowUserForm(false);
     setEditingUser(null);
+  };
+
+  const handleAddServer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newServerName.trim()) return;
+    await supabaseDataService.saveServer(newServerName.trim());
+    const updatedServers = await supabaseDataService.getServers();
+    setServers(updatedServers);
+    setNewServerName('');
+  };
+
+  const handleDeleteServer = async (serverId: string) => {
+    await supabaseDataService.deleteServer(serverId);
+    const updatedServers = await supabaseDataService.getServers();
+    setServers(updatedServers);
   };
 
   const statusStats = [
@@ -420,7 +439,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
             {[
               { id: 'schedules', label: 'Programación' },
               { id: 'stats', label: 'Estadísticas' },
-              { id: 'users', label: 'Usuarios' }
             ].map((t) => (
               <button
                 key={t.id}
@@ -430,6 +448,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
                 {t.label}
               </button>
             ))}
+            {role === UserRole.ADMIN && (
+              <>
+                <button
+                  onClick={() => setActiveTab('users')}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'users' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  Usuarios
+                </button>
+                <button
+                  onClick={() => setActiveTab('servers')}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'servers' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  Servidores
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -679,6 +713,65 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ role, initialTab = 'schedules' 
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'servers' && role === UserRole.ADMIN && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 animate-fadeIn">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-2xl font-bold text-slate-800">Dirección de Servidores</h3>
+              <p className="text-sm text-slate-500">Configura los nombres de los servidores que aparecerán en el directorio.</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleAddServer} className="flex gap-3 mb-8">
+            <input
+              type="text"
+              placeholder="Nombre del nuevo servidor (ej: Servidor 3)"
+              value={newServerName}
+              onChange={e => setNewServerName(e.target.value)}
+              className="flex-1 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+              required
+            />
+            <button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-sm flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Añadir
+            </button>
+          </form>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {servers.length === 0 ? (
+              <div className="col-span-full py-12 text-center text-slate-400 italic bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                No hay servidores configurados. Añade uno arriba.
+              </div>
+            ) : (
+              servers.map(s => (
+                <div key={s.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between group hover:border-blue-200 transition">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-bold text-xs">
+                      S
+                    </div>
+                    <span className="font-bold text-slate-700">{s.name}</span>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteServer(s.id)}
+                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                    title="Eliminar servidor"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}

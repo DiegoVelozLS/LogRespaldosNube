@@ -1,7 +1,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
-import { BackupSchedule, BackupLog, User, BackupStatus, UserRole, BackupType, FrequencyType } from '../types';
+import { BackupSchedule, BackupLog, User, BackupStatus, UserRole, BackupType, FrequencyType, ClientEntry, Server } from '../types';
 
 export const supabaseDataService = {
   // ==================== AUTHENTICATION ====================
@@ -82,7 +82,55 @@ export const supabaseDataService = {
     }
   },
 
-  // ==================== USER MANAGEMENT ====================
+  // ==================== SERVERS ====================
+
+  getServers: async (): Promise<Server[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('servers')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Get servers error:', error);
+      return [];
+    }
+  },
+
+  saveServer: async (name: string): Promise<Server | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('servers')
+        .insert({ name })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Save server error:', error);
+      return null;
+    }
+  },
+
+  deleteServer: async (id: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('servers')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Delete server error:', error);
+      return false;
+    }
+  },
+
+  // ==================== USERS & AUTH ====================
 
   getUsers: async (): Promise<User[]> => {
     try {
@@ -487,6 +535,112 @@ export const supabaseDataService = {
     } catch (error) {
       console.error('Get monthly report error:', error);
       return [];
+    }
+  },
+
+  // ==================== CLIENTS (DIRECTORIO) ====================
+
+  getClients: async (): Promise<ClientEntry[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .order('client_name', { ascending: true });
+
+      if (error) throw error;
+      if (!data) return [];
+
+      return data.map(c => ({
+        id: c.id,
+        clientName: c.client_name,
+        clientRuc: c.client_ruc,
+        ownerCompany: c.owner_company,
+        ownerRuc: c.owner_ruc,
+        dbName: c.db_name,
+        server: c.server,
+        group: c.group_code,
+        subscriptionActive: c.subscription_active
+      }));
+    } catch (error) {
+      console.error('Get clients error:', error);
+      return [];
+    }
+  },
+
+  saveClient: async (client: Omit<ClientEntry, 'id'>): Promise<ClientEntry | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .insert({
+          client_name: client.clientName,
+          client_ruc: client.clientRuc,
+          owner_company: client.ownerCompany,
+          owner_ruc: client.ownerRuc,
+          db_name: client.dbName,
+          server: client.server,
+          group_code: client.group,
+          subscription_active: client.subscriptionActive
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!data) return null;
+
+      return {
+        id: data.id,
+        clientName: data.client_name,
+        clientRuc: data.client_ruc,
+        ownerCompany: data.owner_company,
+        ownerRuc: data.owner_ruc,
+        dbName: data.db_name,
+        server: data.server,
+        group: data.group_code,
+        subscriptionActive: data.subscription_active
+      };
+    } catch (error) {
+      console.error('Save client error:', error);
+      return null;
+    }
+  },
+
+  updateClient: async (id: string, updates: Partial<Omit<ClientEntry, 'id'>>): Promise<boolean> => {
+    try {
+      const dbUpdates: Record<string, any> = {};
+      if (updates.clientName) dbUpdates.client_name = updates.clientName;
+      if (updates.clientRuc) dbUpdates.client_ruc = updates.clientRuc;
+      if (updates.ownerCompany) dbUpdates.owner_company = updates.ownerCompany;
+      if (updates.ownerRuc) dbUpdates.owner_ruc = updates.ownerRuc;
+      if (updates.dbName) dbUpdates.db_name = updates.dbName;
+      if (updates.server) dbUpdates.server = updates.server;
+      if (updates.group) dbUpdates.group_code = updates.group;
+      if (updates.subscriptionActive !== undefined) dbUpdates.subscription_active = updates.subscriptionActive;
+
+      const { error } = await supabase
+        .from('clients')
+        .update(dbUpdates)
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Update client error:', error);
+      return false;
+    }
+  },
+
+  deleteClient: async (id: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Delete client error:', error);
+      return false;
     }
   }
 };

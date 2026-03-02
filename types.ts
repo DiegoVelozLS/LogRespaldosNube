@@ -44,6 +44,23 @@ export interface BackupSchedule {
   description: string;
 }
 
+export interface Server {
+  id: string;
+  name: string;
+}
+
+export interface ClientEntry {
+  id: string;
+  clientName: string;
+  clientRuc: string;
+  ownerCompany: string;
+  ownerRuc: string;
+  dbName: string;
+  server: string;
+  group: string;
+  subscriptionActive: boolean;
+}
+
 export interface BackupLog {
   id: string;
   scheduleId: string;
