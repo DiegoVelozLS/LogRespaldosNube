@@ -3,18 +3,23 @@ import React, { useState, useEffect } from 'react';
 import { User, UserRole } from './types';
 import { APP_VERSION } from './constants';
 import { supabaseDataService } from './services/supabaseDataService';
-import { DashboardIcon, CalendarIcon, CheckIcon, AdminIcon, AlertIcon, ClockIcon, UserCircleIcon } from './components/Icons';
+import { DashboardIcon, CheckIcon, AdminIcon, AlertIcon, ClockIcon, UserCircleIcon } from './components/Icons';
+import Home from './components/Home';
+import Announcements from './components/Announcements';
+import DocumentRepository from './components/DocumentRepository';
+import EmployeeDirectory from './components/EmployeeDirectory';
 import Dashboard from './components/Dashboard';
-import CalendarView from './components/CalendarView';
 import BackupRegistration from './components/BackupRegistration';
 import AdminPanel from './components/AdminPanel';
 import AccountProfile from './components/AccountProfile';
 import MonthlyReport from './components/MonthlyReport';
 import ClientDirectory from './components/ClientDirectory';
 
+type TabType = 'home' | 'announcements' | 'documents' | 'employees' | 'backups' | 'register' | 'admin' | 'stats' | 'profile' | 'reports' | 'clients';
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'register' | 'admin' | 'stats' | 'profile' | 'reports' | 'clients'>('dashboard');
+  const [activeTab, setActiveTab] = useState<TabType>('home');
   const [pendingAlerts, setPendingAlerts] = useState<number>(0);
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
@@ -24,8 +29,8 @@ const App: React.FC = () => {
       const savedUser = await supabaseDataService.getCurrentUser();
       if (savedUser) {
         setUser(savedUser);
-        // Ajustar tab inicial según rol
-        if (savedUser.role === UserRole.SUPERVISOR) setActiveTab('stats');
+        // Siempre empezar en home
+        setActiveTab('home');
 
         // Cargar alertas pendientes
         const tasksToday = await supabaseDataService.getTasksForDate(new Date());
@@ -47,7 +52,7 @@ const App: React.FC = () => {
 
     if (loggedUser) {
       setUser(loggedUser);
-      if (loggedUser.role === UserRole.SUPERVISOR) setActiveTab('stats');
+      setActiveTab('home');
     } else {
       alert('Credenciales incorrectas.');
     }
@@ -57,7 +62,7 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     await supabaseDataService.logout();
     setUser(null);
-    setActiveTab('dashboard');
+    setActiveTab('home');
   };
 
   if (loading) {
@@ -75,8 +80,8 @@ const App: React.FC = () => {
           <div className="flex justify-center mb-6">
             <img src="/assets/Logo-Listosoft.png" alt="Listosoft" className="h-16 w-auto" />
           </div>
-          <h1 className="text-2xl font-bold text-center text-gray-800 mb-2">Log de Respaldos</h1>
-          <p className="text-gray-500 text-center mb-8">Sistema de Control de Respaldos</p>
+          <h1 className="text-2xl font-bold text-center text-gray-800 mb-2">Intranet Listosoft</h1>
+          <p className="text-gray-500 text-center mb-8">Portal Corporativo</p>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
@@ -100,6 +105,10 @@ const App: React.FC = () => {
 
   const hasPermission = (key: string) => user.permissions?.includes(key) || user.role === 'ADMIN';
 
+  const handleNavigate = (tab: string) => {
+    setActiveTab(tab as TabType);
+  };
+
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-50">
       <nav className="w-full md:w-64 bg-slate-900 text-white flex flex-col sticky top-0 md:h-screen z-10">
@@ -107,52 +116,89 @@ const App: React.FC = () => {
           <img src="/assets/Logo-Listosoft.png" alt="Listosoft" className="h-16 w-auto object-contain" />
         </div>
 
-        <div className="flex-1 py-6 px-4 space-y-2">
-          {hasPermission('dashboard') && (
-            <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'dashboard' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <DashboardIcon />
-              <span className="font-medium">Panel Principal</span>
-              {pendingAlerts > 0 && <span className="ml-auto bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">{pendingAlerts}</span>}
-            </button>
-          )}
+        <div className="flex-1 py-6 px-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent hover:scrollbar-thumb-slate-600" style={{ scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }}>
+          {/* Sección Intranet */}
+          <p className="text-xs text-slate-500 uppercase tracking-wider px-4 mb-2">Intranet</p>
+          
+          <button onClick={() => setActiveTab('home')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'home' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <span className="font-medium">Inicio</span>
+          </button>
 
-          {hasPermission('calendar') && (
-            <button onClick={() => setActiveTab('calendar')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'calendar' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <CalendarIcon />
-              <span className="font-medium">Calendario</span>
-            </button>
-          )}
+          <button onClick={() => setActiveTab('announcements')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'announcements' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+            </svg>
+            <span className="font-medium">Anuncios</span>
+          </button>
 
-          {hasPermission('register') && (
-            <button onClick={() => setActiveTab('register')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'register' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <ClockIcon />
-              <span className="font-medium">Registrar Respaldo</span>
-            </button>
-          )}
+          <button onClick={() => setActiveTab('documents')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'documents' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            <span className="font-medium">Documentos</span>
+          </button>
+
+          <button onClick={() => setActiveTab('employees')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'employees' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <span className="font-medium">Directorio</span>
+          </button>
 
           {hasPermission('clients') && (
             <button onClick={() => setActiveTab('clients')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'clients' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
-              <span className="font-medium">Directorio</span>
+              <span className="font-medium">Clientes</span>
             </button>
           )}
 
-          {hasPermission('reports') && (
-            <button onClick={() => setActiveTab('reports')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'reports' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span className="font-medium">Reportes</span>
-            </button>
+          {/* Sección Sistema de Respaldos */}
+          {hasPermission('dashboard') && (
+            <>
+              <div className="pt-4 pb-2">
+                <p className="text-xs text-slate-500 uppercase tracking-wider px-4">Respaldos</p>
+              </div>
+
+              <button onClick={() => setActiveTab('backups')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'backups' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                <DashboardIcon />
+                <span className="font-medium">Panel Respaldos</span>
+                {pendingAlerts > 0 && <span className="ml-auto bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">{pendingAlerts}</span>}
+              </button>
+
+              {hasPermission('register') && (
+                <button onClick={() => setActiveTab('register')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'register' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                  <ClockIcon />
+                  <span className="font-medium">Registrar</span>
+                </button>
+              )}
+
+              {hasPermission('reports') && (
+                <button onClick={() => setActiveTab('reports')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'reports' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="font-medium">Reportes</span>
+                </button>
+              )}
+            </>
           )}
 
+          {/* Sección Admin */}
           {hasPermission('admin') && (
-            <button onClick={() => setActiveTab('admin')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'admin' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <AdminIcon />
-              <span className="font-medium">Administración</span>
-            </button>
+            <>
+              <div className="pt-4 pb-2">
+                <p className="text-xs text-slate-500 uppercase tracking-wider px-4">Admin</p>
+              </div>
+              <button onClick={() => setActiveTab('admin')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'admin' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                <AdminIcon />
+                <span className="font-medium">Administración</span>
+              </button>
+            </>
           )}
         </div>
 
@@ -173,16 +219,19 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      <main className="flex-1 overflow-y-auto p-4 md:p-8">
-        <div className="max-w-6xl mx-auto">
-          {activeTab === 'dashboard' && <Dashboard user={user} onRefresh={() => { }} onNavigateToRegister={(scheduleId) => {
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-7xl mx-auto p-6">
+          {activeTab === 'home' && <Home user={user} onNavigate={handleNavigate} />}
+          {activeTab === 'announcements' && <Announcements user={user} />}
+          {activeTab === 'documents' && <DocumentRepository user={user} />}
+          {activeTab === 'employees' && <EmployeeDirectory user={user} />}
+          {activeTab === 'backups' && <Dashboard user={user} onRefresh={() => { }} onNavigateToRegister={(scheduleId) => {
             setSelectedTaskId(scheduleId);
             setActiveTab('register');
           }} />}
-          {activeTab === 'calendar' && <CalendarView user={user} />}
           {activeTab === 'register' && <BackupRegistration user={user} preSelectedTaskId={selectedTaskId} onComplete={() => {
             setSelectedTaskId(undefined);
-            setActiveTab('dashboard');
+            setActiveTab('backups');
           }} />}
           {activeTab === 'admin' && <AdminPanel role={user.role} />}
           {activeTab === 'stats' && <AdminPanel role={user.role} initialTab="stats" />}

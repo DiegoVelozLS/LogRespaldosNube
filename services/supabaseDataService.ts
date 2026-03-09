@@ -1,7 +1,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
-import { BackupSchedule, BackupLog, User, BackupStatus, Role, UserRole, BackupType, FrequencyType, ClientEntry, Server } from '../types';
+import { BackupSchedule, BackupLog, User, BackupStatus, Role, UserRole, BackupType, FrequencyType, ClientEntry, Server, Employee } from '../types';
 
 export const supabaseDataService = {
   // ==================== AUTHENTICATION ====================
@@ -677,6 +677,130 @@ export const supabaseDataService = {
     } catch (error) {
       console.error('Get monthly report error:', error);
       return [];
+    }
+  },
+
+  // ==================== EMPLOYEES ====================
+
+  getEmployees: async (): Promise<Employee[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      if (!data) return [];
+
+      return data.map(e => ({
+        id: e.id,
+        userId: e.user_id || '',
+        name: e.name,
+        lastName: e.last_name,
+        email: e.email,
+        department: e.department,
+        position: e.position,
+        phone: e.phone,
+        extension: e.extension,
+        birthday: e.birthday,
+        hireDate: e.hire_date,
+        photoUrl: e.photo_url,
+        role: e.role
+      }));
+    } catch (error) {
+      console.error('Get employees error:', error);
+      return [];
+    }
+  },
+
+  saveEmployee: async (employee: Omit<Employee, 'id'>): Promise<Employee | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .insert({
+          user_id: employee.userId || null,
+          name: employee.name,
+          last_name: employee.lastName,
+          email: employee.email,
+          department: employee.department,
+          position: employee.position,
+          phone: employee.phone || null,
+          extension: employee.extension || null,
+          birthday: employee.birthday || null,
+          hire_date: employee.hireDate || null,
+          photo_url: employee.photoUrl || null,
+          role: employee.role || 'EMPLOYEE'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!data) return null;
+
+      return {
+        id: data.id,
+        userId: data.user_id || '',
+        name: data.name,
+        lastName: data.last_name,
+        email: data.email,
+        department: data.department,
+        position: data.position,
+        phone: data.phone,
+        extension: data.extension,
+        birthday: data.birthday,
+        hireDate: data.hire_date,
+        photoUrl: data.photo_url,
+        role: data.role
+      };
+    } catch (error) {
+      console.error('Save employee error:', error);
+      return null;
+    }
+  },
+
+  updateEmployee: async (id: string, updates: Partial<Omit<Employee, 'id'>>): Promise<boolean> => {
+    try {
+      const dbUpdates: Record<string, any> = {};
+      if (updates.name) dbUpdates.name = updates.name;
+      if (updates.lastName) dbUpdates.last_name = updates.lastName;
+      if (updates.email) dbUpdates.email = updates.email;
+      if (updates.department) dbUpdates.department = updates.department;
+      if (updates.position) dbUpdates.position = updates.position;
+      if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+      if (updates.extension !== undefined) dbUpdates.extension = updates.extension;
+      if (updates.birthday !== undefined) dbUpdates.birthday = updates.birthday;
+      if (updates.hireDate !== undefined) dbUpdates.hire_date = updates.hireDate;
+      if (updates.photoUrl !== undefined) dbUpdates.photo_url = updates.photoUrl;
+      if (updates.role) dbUpdates.role = updates.role;
+
+      const { error } = await supabase
+        .from('employees')
+        .update(dbUpdates)
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Update employee error:', error);
+      return false;
+    }
+  },
+
+  deleteEmployee: async (id: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const { error } = await supabase
+        .from('employees')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Delete employee error:', error);
+        return { success: false, error: error.message || 'Error desconocido al eliminar' };
+      }
+      return { success: true };
+    } catch (error: any) {
+      console.error('Delete employee error:', error);
+      return { success: false, error: error?.message || 'Error desconocido al eliminar' };
     }
   },
 

@@ -2,8 +2,83 @@
 export enum UserRole {
   ADMIN = 'ADMIN',
   TECH = 'TECH',
-  SUPERVISOR = 'SUPERVISOR'
+  SUPERVISOR = 'SUPERVISOR',
+  RRHH = 'RRHH',
+  EMPLOYEE = 'EMPLOYEE'
 }
+
+// ==================== INTRANET TYPES ====================
+
+export enum AnnouncementCategory {
+  GENERAL = 'GENERAL',
+  TECH = 'TECH',
+  RRHH = 'RRHH',
+  ADMIN = 'ADMIN',
+  URGENT = 'URGENT'
+}
+
+export enum AnnouncementPriority {
+  LOW = 'LOW',
+  NORMAL = 'NORMAL',
+  HIGH = 'HIGH',
+  URGENT = 'URGENT'
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  category: AnnouncementCategory;
+  priority: AnnouncementPriority;
+  visibleRoles: string[];
+  createdBy: string;
+  createdByName: string;
+  createdAt: string;
+  expiresAt?: string;
+  deadline?: string;
+  isPinned: boolean;
+}
+
+export interface Document {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  categoryId: string;
+  fileUrl: string;
+  visibleRoles: string[];
+  uploadedBy: string;
+  uploadedByName: string;
+  createdAt: string;
+  fileSize: string;
+  fileType: string;
+}
+
+export interface DocumentCategory {
+  id: string;
+  name: string;
+  icon: string;
+  parentId?: string;
+  description?: string;
+}
+
+export interface Employee {
+  id: string;
+  userId: string;
+  name: string;
+  lastName: string;
+  email: string;
+  department: string;
+  position: string;
+  phone?: string;
+  extension?: string;
+  birthday?: string;
+  hireDate?: string;
+  photoUrl?: string;
+  role: string;
+}
+
+
 
 export interface Role {
   id: string;
