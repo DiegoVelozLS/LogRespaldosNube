@@ -2,6 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { User, Employee } from '../types';
 import { supabaseDataService } from '../services/supabaseDataService';
 
+// Departamentos fijos con colores institucionales
+const DEPARTMENTS: { name: string; color: string }[] = [
+  { name: 'Innovación', color: '#7C3AED' }, // morado
+  { name: 'Soporte', color: '#166534' }, // verde oscuro
+  { name: 'Desarrollo', color: '#38BDF8' }, // celeste
+  { name: 'Administración', color: '#F97316' }, // naranja
+  { name: 'Contabilidad externa', color: '#94A3B8' }, // gris
+  { name: 'Servicios generales', color: '#67E8F9' }, // gris celeste
+  { name: 'Talento Humano', color: '#CA8A04' }, // dorado sobrio
+  { name: 'Gerencia', color: '#1E3A5F' }, // azul oscuro formal
+];
+
+const DEPARTMENT_COLOR_MAP: Record<string, string> = Object.fromEntries(
+  DEPARTMENTS.map(d => [d.name, d.color])
+);
+
 interface EmployeeDirectoryProps {
   user: User;
 }
@@ -100,8 +116,8 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
     setIsEditingEmployee(true);
   };
 
-  // Obtener la lista única de departamentos
-  const departmentsList: string[] = Array.from(new Set(employees.map(emp => emp.department || ''))).filter(Boolean).sort() as string[];
+  // Lista fija de departamentos para filtros
+  const departmentsList: string[] = DEPARTMENTS.map(d => d.name);
 
   // Filtrar empleados
   const filteredEmployees = employees
@@ -114,17 +130,8 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
     )
     .sort((a, b) => (a.name + a.lastName).localeCompare(b.name + b.lastName));
 
-  const getDepartmentColor = (department: string = '') => {
-    if (!department) return '#64748b';
-    // Generamos un color estático basado en el string para que sea consistente
-    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#EC4899', '#06B6D4'];
-    let hash = 0;
-    for (let i = 0; i < department.length; i++) {
-      hash = department.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % colors.length;
-    return colors[index];
-  };
+  const getDepartmentColor = (department: string = '') =>
+    DEPARTMENT_COLOR_MAP[department] ?? '#64748b';
 
   const getInitials = (name: string, lastName: string) => {
     return `${name.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
@@ -737,14 +744,17 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Departamento *</label>
-                      <input
-                        type="text"
+                      <select
                         required
                         value={newEmployee.department}
                         onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        placeholder="Ej. Ventas, IT..."
-                      />
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-slate-700 bg-white"
+                      >
+                        <option value="" disabled>Seleccionar departamento...</option>
+                        {DEPARTMENTS.map(d => (
+                          <option key={d.name} value={d.name}>{d.name}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Cargo *</label>

@@ -145,6 +145,16 @@ export interface ClientEntry {
   subscriptionActive: boolean;
 }
 
+export interface ClientContact {
+  id: string;
+  clientId: string;
+  name: string;
+  position: string;
+  email: string;
+  phone: string;
+  notes?: string;
+}
+
 export interface BackupLog {
   id: string;
   scheduleId: string;

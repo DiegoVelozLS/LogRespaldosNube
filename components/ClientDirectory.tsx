@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserRole, ClientEntry, Server } from '../types';
+import { UserRole, ClientEntry, Server, ClientContact } from '../types';
 import { supabaseDataService } from '../services/supabaseDataService';
 
 interface ClientFormData {
@@ -13,7 +13,13 @@ interface ClientFormData {
     subscriptionActive: boolean;
 }
 
-// const MOCK_DATA: ClientEntry[] = [ ... ];
+interface ContactFormData {
+    name: string;
+    position: string;
+    email: string;
+    phone: string;
+    notes: string;
+}
 
 // SERVERS are now dynamic from DB
 const SUBSCRIPTIONS = ['Todas', 'Activa', 'Inactiva'];
@@ -27,6 +33,14 @@ const INITIAL_FORM_DATA: ClientFormData = {
     server: '', // Selection required
     group: '',
     subscriptionActive: true,
+};
+
+const INITIAL_CONTACT_FORM: ContactFormData = {
+    name: '',
+    position: '',
+    email: '',
+    phone: '',
+    notes: '',
 };
 
 interface ClientDirectoryProps {
@@ -51,6 +65,16 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
     const [clients, setClients] = useState<ClientEntry[]>([]);
     const [serverOptions, setServerOptions] = useState<Server[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Contacts state
+    const [showContactsModal, setShowContactsModal] = useState(false);
+    const [contactsClient, setContactsClient] = useState<ClientEntry | null>(null);
+    const [contacts, setContacts] = useState<ClientContact[]>([]);
+    const [contactsLoading, setContactsLoading] = useState(false);
+    const [showContactForm, setShowContactForm] = useState(false);
+    const [editingContact, setEditingContact] = useState<ClientContact | null>(null);
+    const [contactForm, setContactForm] = useState<ContactFormData>(INITIAL_CONTACT_FORM);
+    const [contactSaving, setContactSaving] = useState(false);
 
     const isAdmin = role === UserRole.ADMIN;
 
@@ -136,6 +160,103 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
         setShowForm(false);
         setEditingEntry(null);
         setFormData(INITIAL_FORM_DATA);
+    };
+
+    // ---- Contacts handlers ----
+
+    const openContactsModal = async (client: ClientEntry) => {
+        setContactsClient(client);
+        setShowContactsModal(true);
+        setShowContactForm(false);
+        setEditingContact(null);
+        setContactForm(INITIAL_CONTACT_FORM);
+        setContactsLoading(true);
+        const data = await supabaseDataService.getClientContacts(client.id);
+        setContacts(data);
+        setContactsLoading(false);
+    };
+
+    const closeContactsModal = () => {
+        setSelectedRow(contactsClient);   // reopen the client detail panel
+        setShowContactsModal(false);
+        setContactsClient(null);
+        setContacts([]);
+        setShowContactForm(false);
+        setEditingContact(null);
+        setContactForm(INITIAL_CONTACT_FORM);
+    };
+
+    const openNewContactForm = () => {
+        setEditingContact(null);
+        setContactForm(INITIAL_CONTACT_FORM);
+        setShowContactForm(true);
+    };
+
+    const openEditContactForm = (contact: ClientContact) => {
+        setEditingContact(contact);
+        setContactForm({
+            name: contact.name,
+            position: contact.position,
+            email: contact.email,
+            phone: contact.phone,
+            notes: contact.notes || '',
+        });
+        setShowContactForm(true);
+    };
+
+    const cancelContactForm = () => {
+        setShowContactForm(false);
+        setEditingContact(null);
+        setContactForm(INITIAL_CONTACT_FORM);
+    };
+
+    const handleSaveContact = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!contactsClient) return;
+        setContactSaving(true);
+
+        let success = false;
+        if (editingContact) {
+            success = await supabaseDataService.updateClientContact(editingContact.id, {
+                name: contactForm.name,
+                position: contactForm.position,
+                email: contactForm.email,
+                phone: contactForm.phone,
+                notes: contactForm.notes || undefined,
+            });
+        } else {
+            const result = await supabaseDataService.saveClientContact({
+                clientId: contactsClient.id,
+                name: contactForm.name,
+                position: contactForm.position,
+                email: contactForm.email,
+                phone: contactForm.phone,
+                notes: contactForm.notes || undefined,
+            });
+            success = !!result;
+        }
+
+        if (success) {
+            const updated = await supabaseDataService.getClientContacts(contactsClient.id);
+            setContacts(updated);
+            cancelContactForm();
+        } else {
+            alert('Error al guardar el contacto');
+        }
+        setContactSaving(false);
+    };
+
+    const handleDeleteContact = async (contactId: string) => {
+        if (!contactsClient) return;
+        if (confirm('¿Estás seguro de eliminar este contacto?')) {
+            const success = await supabaseDataService.deleteClientContact(contactId);
+            if (success) {
+                const updated = await supabaseDataService.getClientContacts(contactsClient.id);
+                setContacts(updated);
+            } else {
+                alert('Error al eliminar el contacto');
+            }
+        }
     };
 
     const hasActiveFilters = !!(search || filterServer !== 'Todos' || filterGroup !== 'Todos' || filterSub !== 'Todas');
@@ -378,8 +499,26 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
                                 </div>
                             ))}
                         </div>
+
+                        {/* Contacts button — visible for all roles */}
+                        <div className="px-6 pb-2">
+                            <button
+                                onClick={() => {
+                                    const client = selectedRow;
+                                    setSelectedRow(null);
+                                    openContactsModal(client);
+                                }}
+                                className="w-full flex items-center justify-center gap-2 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 py-2.5 rounded-xl font-bold text-sm transition"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                Ver Contactos
+                            </button>
+                        </div>
+
                         {isAdmin && (
-                            <div className="px-6 pb-6 flex flex-col gap-3">
+                            <div className="px-6 pb-6 flex flex-col gap-3 mt-3">
                                 <div className="flex gap-3">
                                     <button
                                         onClick={() => {
@@ -413,6 +552,239 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
                                 </button>
                             </div>
                         )}
+                        {!isAdmin && (
+                            <div className="px-6 pb-6 mt-2">
+                                <button
+                                    onClick={() => setSelectedRow(null)}
+                                    className="w-full bg-slate-100 text-slate-600 py-2.5 rounded-xl font-bold hover:bg-slate-200 transition text-sm"
+                                >
+                                    Cerrar
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Contacts Modal */}
+            {showContactsModal && contactsClient && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={closeContactsModal}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-violet-50">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                    <h3 className="text-lg font-bold text-slate-800">Contactos</h3>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    <span className="font-semibold text-violet-700">{contactsClient.clientName}</span>
+                                    <span className="mx-1.5 text-slate-300">·</span>
+                                    <span className="font-mono">{contactsClient.dbName}</span>
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {isAdmin && !showContactForm && (
+                                    <button
+                                        onClick={openNewContactForm}
+                                        className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition shadow-sm"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        Agregar
+                                    </button>
+                                )}
+                                <button onClick={closeContactsModal} className="text-slate-400 hover:text-slate-700 transition p-1">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="overflow-y-auto flex-1 p-6 space-y-4">
+
+                            {/* Contact form (inline) */}
+                            {showContactForm && (
+                                <div className="bg-violet-50 border border-violet-200 rounded-2xl p-5">
+                                    <h4 className="text-sm font-bold text-violet-700 mb-4">
+                                        {editingContact ? 'Editar Contacto' : 'Nuevo Contacto'}
+                                    </h4>
+                                    <form onSubmit={handleSaveContact} className="space-y-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Nombre *</label>
+                                                <input
+                                                    required
+                                                    value={contactForm.name}
+                                                    onChange={e => setContactForm(p => ({ ...p, name: e.target.value }))}
+                                                    placeholder="Ej: Juan Pérez"
+                                                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 outline-none"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Cargo</label>
+                                                <input
+                                                    value={contactForm.position}
+                                                    onChange={e => setContactForm(p => ({ ...p, position: e.target.value }))}
+                                                    placeholder="Ej: Gerente de TI"
+                                                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 outline-none"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Correo</label>
+                                                <input
+                                                    type="email"
+                                                    value={contactForm.email}
+                                                    onChange={e => setContactForm(p => ({ ...p, email: e.target.value }))}
+                                                    placeholder="correo@empresa.com"
+                                                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 outline-none"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Teléfono</label>
+                                                <input
+                                                    value={contactForm.phone}
+                                                    onChange={e => setContactForm(p => ({ ...p, phone: e.target.value }))}
+                                                    placeholder="Ej: 0991234567"
+                                                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 outline-none"
+                                                />
+                                            </div>
+                                            <div className="sm:col-span-2 space-y-1">
+                                                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Notas</label>
+                                                <textarea
+                                                    value={contactForm.notes}
+                                                    onChange={e => setContactForm(p => ({ ...p, notes: e.target.value }))}
+                                                    placeholder="Información adicional..."
+                                                    rows={2}
+                                                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 outline-none resize-none"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-3 pt-1">
+                                            <button
+                                                type="submit"
+                                                disabled={contactSaving}
+                                                className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white py-2.5 rounded-xl font-bold text-sm transition"
+                                            >
+                                                {contactSaving ? 'Guardando...' : (editingContact ? 'Actualizar' : 'Guardar Contacto')}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={cancelContactForm}
+                                                className="flex-1 bg-white border border-slate-200 text-slate-600 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            )}
+
+                            {/* Contact list */}
+                            {contactsLoading ? (
+                                <div className="text-center py-12 text-slate-400">
+                                    <svg className="w-8 h-8 mx-auto animate-spin text-violet-400 mb-3" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                    </svg>
+                                    <p className="text-sm">Cargando contactos...</p>
+                                </div>
+                            ) : contacts.length === 0 && !showContactForm ? (
+                                <div className="text-center py-14">
+                                    <div className="w-14 h-14 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-3">
+                                        <svg className="w-7 h-7 text-violet-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                    </div>
+                                    <p className="text-slate-500 font-semibold text-sm">Sin contactos registrados</p>
+                                    <p className="text-slate-400 text-xs mt-1">
+                                        {isAdmin ? 'Usa el botón "Agregar" para añadir el primer contacto.' : 'Este cliente no tiene contactos registrados.'}
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {contacts.map(contact => (
+                                        <div key={contact.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-start justify-between gap-3 hover:border-violet-200 hover:bg-violet-50/30 transition">
+                                            <div className="flex items-start gap-3 min-w-0">
+                                                {/* Avatar */}
+                                                <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0">
+                                                    <span className="text-violet-700 font-bold text-sm">
+                                                        {contact.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                                                    </span>
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-slate-800 text-sm">{contact.name}</p>
+                                                    {contact.position && (
+                                                        <p className="text-xs text-violet-600 font-semibold mt-0.5">{contact.position}</p>
+                                                    )}
+                                                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5">
+                                                        {contact.email && (
+                                                            <a href={`mailto:${contact.email}`} className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 transition">
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                                                </svg>
+                                                                {contact.email}
+                                                            </a>
+                                                        )}
+                                                        {contact.phone && (
+                                                            <a href={`tel:${contact.phone}`} className="flex items-center gap-1 text-xs text-slate-500 hover:text-green-600 transition">
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                                                </svg>
+                                                                {contact.phone}
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                    {contact.notes && (
+                                                        <p className="text-xs text-slate-400 mt-1.5 italic">{contact.notes}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {isAdmin && (
+                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                    <button
+                                                        onClick={() => openEditContactForm(contact)}
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                                                        title="Editar contacto"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteContact(contact.id)}
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                                                        title="Eliminar contacto"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                            <p className="text-xs text-slate-400">
+                                {contacts.length} {contacts.length === 1 ? 'contacto' : 'contactos'} registrados
+                            </p>
+                            <button
+                                onClick={closeContactsModal}
+                                className="px-5 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-100 transition"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

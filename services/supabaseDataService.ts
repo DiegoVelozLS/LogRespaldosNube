@@ -1,10 +1,103 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
-import { BackupSchedule, BackupLog, User, BackupStatus, Role, UserRole, BackupType, FrequencyType, ClientEntry, Server, Employee } from '../types';
+import { BackupSchedule, BackupLog, User, BackupStatus, Role, UserRole, BackupType, FrequencyType, ClientEntry, Server, Employee, ClientContact } from '../types';
 
 export const supabaseDataService = {
   // ==================== AUTHENTICATION ====================
+
+  loginWithGoogle: async (): Promise<void> => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
+    if (error) {
+      console.error('Google login error:', error);
+      throw error;
+    }
+  },
+
+  // Obtiene o crea el perfil del usuario en public.users (para OAuth)
+  getOrCreateUserProfile: async (authUser: { id: string; email?: string; user_metadata?: any }): Promise<User | null> => {
+    try {
+      // Primero intentar obtener el perfil existente
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('users')
+        .select(`
+          *,
+          roles(id, name, description, role_permissions(permission_key))
+        `)
+        .eq('id', authUser.id)
+        .single();
+
+      if (existingProfile) {
+        const roleData = existingProfile.roles as any;
+        return {
+          id: existingProfile.id,
+          name: existingProfile.name,
+          lastName: existingProfile.last_name,
+          email: existingProfile.email,
+          role: roleData?.name || existingProfile.role,
+          roleId: existingProfile.role_id,
+          permissions: roleData?.role_permissions?.map((p: any) => p.permission_key) || []
+        };
+      }
+
+      // Si no existe, crear nuevo perfil con rol por defecto (EMPLOYEE)
+      const metadata = authUser.user_metadata || {};
+      const fullName = metadata.full_name || metadata.name || '';
+      const nameParts = fullName.split(' ');
+      const firstName = nameParts[0] || 'Usuario';
+      const lastName = nameParts.slice(1).join(' ') || 'Google';
+
+      // Obtener el rol EMPLOYEE por defecto
+      const { data: defaultRole } = await supabase
+        .from('roles')
+        .select('id')
+        .eq('name', 'EMPLOYEE')
+        .single();
+
+      const { data: newProfile, error: insertError } = await supabase
+        .from('users')
+        .insert({
+          id: authUser.id,
+          email: authUser.email || '',
+          name: firstName,
+          last_name: lastName,
+          role: 'EMPLOYEE',
+          role_id: defaultRole?.id || null
+        })
+        .select(`
+          *,
+          roles(id, name, description, role_permissions(permission_key))
+        `)
+        .single();
+
+      if (insertError) {
+        console.error('Error creating user profile:', insertError);
+        return null;
+      }
+
+      if (newProfile) {
+        const roleData = newProfile.roles as any;
+        return {
+          id: newProfile.id,
+          name: newProfile.name,
+          lastName: newProfile.last_name,
+          email: newProfile.email,
+          role: roleData?.name || newProfile.role,
+          roleId: newProfile.role_id,
+          permissions: roleData?.role_permissions?.map((p: any) => p.permission_key) || []
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('getOrCreateUserProfile error:', error);
+      return null;
+    }
+  },
 
   login: async (email: string, password: string): Promise<User | null> => {
     try {
@@ -906,6 +999,104 @@ export const supabaseDataService = {
       return true;
     } catch (error) {
       console.error('Delete client error:', error);
+      return false;
+    }
+  },
+
+  // ==================== CLIENT CONTACTS ====================
+
+  getClientContacts: async (clientId: string): Promise<ClientContact[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('client_contacts')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      if (!data) return [];
+
+      return data.map(c => ({
+        id: c.id,
+        clientId: c.client_id,
+        name: c.name,
+        position: c.position || '',
+        email: c.email || '',
+        phone: c.phone || '',
+        notes: c.notes || undefined
+      }));
+    } catch (error) {
+      console.error('Get client contacts error:', error);
+      return [];
+    }
+  },
+
+  saveClientContact: async (contact: Omit<ClientContact, 'id'>): Promise<ClientContact | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('client_contacts')
+        .insert({
+          client_id: contact.clientId,
+          name: contact.name,
+          position: contact.position,
+          email: contact.email,
+          phone: contact.phone,
+          notes: contact.notes || null
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!data) return null;
+
+      return {
+        id: data.id,
+        clientId: data.client_id,
+        name: data.name,
+        position: data.position || '',
+        email: data.email || '',
+        phone: data.phone || '',
+        notes: data.notes || undefined
+      };
+    } catch (error) {
+      console.error('Save client contact error:', error);
+      return null;
+    }
+  },
+
+  updateClientContact: async (id: string, updates: Partial<Omit<ClientContact, 'id' | 'clientId'>>): Promise<boolean> => {
+    try {
+      const dbUpdates: Record<string, any> = {};
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.position !== undefined) dbUpdates.position = updates.position;
+      if (updates.email !== undefined) dbUpdates.email = updates.email;
+      if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+      if (updates.notes !== undefined) dbUpdates.notes = updates.notes || null;
+
+      const { error } = await supabase
+        .from('client_contacts')
+        .update(dbUpdates as any)
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Update client contact error:', error);
+      return false;
+    }
+  },
+
+  deleteClientContact: async (id: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('client_contacts')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Delete client contact error:', error);
       return false;
     }
   }
