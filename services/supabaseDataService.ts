@@ -22,6 +22,8 @@ export const supabaseDataService = {
   // Obtiene o crea el perfil del usuario en public.users (para OAuth)
   getOrCreateUserProfile: async (authUser: { id: string; email?: string; user_metadata?: any }): Promise<User | null> => {
     try {
+      console.log('getOrCreateUserProfile called with:', authUser.id, authUser.email);
+      
       // Primero intentar obtener el perfil existente
       const { data: existingProfile, error: fetchError } = await supabase
         .from('users')
@@ -31,6 +33,8 @@ export const supabaseDataService = {
         `)
         .eq('id', authUser.id)
         .single();
+
+      console.log('Existing profile query result:', existingProfile, 'Error:', fetchError);
 
       if (existingProfile) {
         const roleData = existingProfile.roles as any;
@@ -47,32 +51,41 @@ export const supabaseDataService = {
 
       // Si no existe, crear nuevo perfil con rol por defecto (EMPLOYEE)
       const metadata = authUser.user_metadata || {};
+      console.log('User metadata from Google:', metadata);
+      
       // Google provee given_name y family_name directamente
       const firstName = metadata.given_name || metadata.name?.split(' ')[0] || 'Usuario';
       const lastName = metadata.family_name || metadata.name?.split(' ').slice(1).join(' ') || '';
 
       // Obtener el rol EMPLOYEE por defecto
-      const { data: defaultRole } = await supabase
+      const { data: defaultRole, error: roleError } = await supabase
         .from('roles')
         .select('id')
         .eq('name', 'EMPLOYEE')
         .single();
 
+      console.log('Default role query:', defaultRole, 'Error:', roleError);
+
+      const insertData = {
+        id: authUser.id,
+        email: authUser.email || '',
+        name: firstName,
+        last_name: lastName,
+        role: 'EMPLOYEE',
+        role_id: defaultRole?.id || null
+      };
+      console.log('Attempting to insert user:', insertData);
+
       const { data: newProfile, error: insertError } = await supabase
         .from('users')
-        .insert({
-          id: authUser.id,
-          email: authUser.email || '',
-          name: firstName,
-          last_name: lastName,
-          role: 'EMPLOYEE',
-          role_id: defaultRole?.id || null
-        })
+        .insert(insertData)
         .select(`
           *,
           roles(id, name, description, role_permissions(permission_key))
         `)
         .single();
+
+      console.log('Insert result:', newProfile, 'Error:', insertError);
 
       if (insertError) {
         console.error('Error creating user profile:', insertError);

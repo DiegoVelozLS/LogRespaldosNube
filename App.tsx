@@ -27,8 +27,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
+    let isProcessing = false;
 
     const loadUser = async () => {
+      if (isProcessing) return;
+      isProcessing = true;
+      
       try {
         const savedUser = await supabaseDataService.getCurrentUser();
         if (isMounted && savedUser) {
@@ -40,32 +44,50 @@ const App: React.FC = () => {
       } catch (error) {
         console.error('Error loading user:', error);
       } finally {
+        isProcessing = false;
         if (isMounted) setLoading(false);
       }
     };
 
     // Listener para cambios de autenticación (OAuth callback)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth event:', event);
+      console.log('Auth event:', event, session?.user?.email);
       
       if (event === 'SIGNED_IN' && session?.user && isMounted) {
+        if (isProcessing) return;
+        isProcessing = true;
         setLoading(true);
+        
         try {
+          console.log('Getting/creating user profile...');
           const userProfile = await supabaseDataService.getOrCreateUserProfile(session.user);
+          console.log('User profile result:', userProfile);
+          
           if (isMounted && userProfile) {
             setUser(userProfile);
             setActiveTab('home');
             const tasksToday = await supabaseDataService.getTasksForDate(new Date());
             setPendingAlerts(tasksToday.filter(t => !t.log).length);
+          } else if (isMounted && !userProfile) {
+            // Si no se pudo obtener/crear el perfil, cerrar sesión
+            console.error('Could not get/create user profile, signing out...');
+            await supabaseDataService.logout();
           }
         } catch (error) {
           console.error('Error in auth callback:', error);
+          if (isMounted) {
+            await supabaseDataService.logout();
+          }
         } finally {
+          isProcessing = false;
           if (isMounted) setLoading(false);
         }
       } else if (event === 'SIGNED_OUT' && isMounted) {
         setUser(null);
         setActiveTab('home');
+        setLoading(false);
+      } else if (event === 'INITIAL_SESSION' && !session && isMounted) {
+        // No hay sesión inicial
         setLoading(false);
       }
     });
