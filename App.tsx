@@ -28,6 +28,7 @@ const App: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
     let isProcessing = false;
+    let hasLoadedInitialUser = false;
 
     const loadUser = async () => {
       if (isProcessing) return;
@@ -38,6 +39,7 @@ const App: React.FC = () => {
         if (isMounted && savedUser) {
           setUser(savedUser);
           setActiveTab('home');
+          hasLoadedInitialUser = true;
           const tasksToday = await supabaseDataService.getTasksForDate(new Date());
           setPendingAlerts(tasksToday.filter(t => !t.log).length);
         }
@@ -51,25 +53,24 @@ const App: React.FC = () => {
 
     // Listener para cambios de autenticación (OAuth callback)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth event:', event, session?.user?.email);
+      console.log('Auth event:', event);
       
-      if (event === 'SIGNED_IN' && session?.user && isMounted) {
+      // Solo procesar SIGNED_IN si es un login nuevo (no ya cargado)
+      if (event === 'SIGNED_IN' && session?.user && isMounted && !hasLoadedInitialUser) {
         if (isProcessing) return;
         isProcessing = true;
         setLoading(true);
         
         try {
-          console.log('Getting/creating user profile...');
           const userProfile = await supabaseDataService.getOrCreateUserProfile(session.user);
-          console.log('User profile result:', userProfile);
           
           if (isMounted && userProfile) {
             setUser(userProfile);
             setActiveTab('home');
+            hasLoadedInitialUser = true;
             const tasksToday = await supabaseDataService.getTasksForDate(new Date());
             setPendingAlerts(tasksToday.filter(t => !t.log).length);
           } else if (isMounted && !userProfile) {
-            // Si no se pudo obtener/crear el perfil, cerrar sesión
             console.error('Could not get/create user profile, signing out...');
             await supabaseDataService.logout();
           }
@@ -85,9 +86,9 @@ const App: React.FC = () => {
       } else if (event === 'SIGNED_OUT' && isMounted) {
         setUser(null);
         setActiveTab('home');
+        hasLoadedInitialUser = false;
         setLoading(false);
       } else if (event === 'INITIAL_SESSION' && !session && isMounted) {
-        // No hay sesión inicial
         setLoading(false);
       }
     });
