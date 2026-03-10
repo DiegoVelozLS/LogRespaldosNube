@@ -47,10 +47,9 @@ export const supabaseDataService = {
 
       // Si no existe, crear nuevo perfil con rol por defecto (EMPLOYEE)
       const metadata = authUser.user_metadata || {};
-      const fullName = metadata.full_name || metadata.name || '';
-      const nameParts = fullName.split(' ');
-      const firstName = nameParts[0] || 'Usuario';
-      const lastName = nameParts.slice(1).join(' ') || 'Google';
+      // Google provee given_name y family_name directamente
+      const firstName = metadata.given_name || metadata.name?.split(' ')[0] || 'Usuario';
+      const lastName = metadata.family_name || metadata.name?.split(' ').slice(1).join(' ') || '';
 
       // Obtener el rol EMPLOYEE por defecto
       const { data: defaultRole } = await supabase

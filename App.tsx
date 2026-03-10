@@ -26,42 +26,54 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadUser = async () => {
-      const savedUser = await supabaseDataService.getCurrentUser();
-      if (savedUser) {
-        setUser(savedUser);
-        // Siempre empezar en home
-        setActiveTab('home');
+    let isMounted = true;
 
-        // Cargar alertas pendientes
-        const tasksToday = await supabaseDataService.getTasksForDate(new Date());
-        setPendingAlerts(tasksToday.filter(t => !t.log).length);
+    const loadUser = async () => {
+      try {
+        const savedUser = await supabaseDataService.getCurrentUser();
+        if (isMounted && savedUser) {
+          setUser(savedUser);
+          setActiveTab('home');
+          const tasksToday = await supabaseDataService.getTasksForDate(new Date());
+          setPendingAlerts(tasksToday.filter(t => !t.log).length);
+        }
+      } catch (error) {
+        console.error('Error loading user:', error);
+      } finally {
+        if (isMounted) setLoading(false);
       }
-      setLoading(false);
     };
 
     // Listener para cambios de autenticación (OAuth callback)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        // Usuario acaba de iniciar sesión (posiblemente con Google)
-        const userProfile = await supabaseDataService.getOrCreateUserProfile(session.user);
-        if (userProfile) {
-          setUser(userProfile);
-          setActiveTab('home');
-          // Cargar alertas pendientes
-          const tasksToday = await supabaseDataService.getTasksForDate(new Date());
-          setPendingAlerts(tasksToday.filter(t => !t.log).length);
+      console.log('Auth event:', event);
+      
+      if (event === 'SIGNED_IN' && session?.user && isMounted) {
+        setLoading(true);
+        try {
+          const userProfile = await supabaseDataService.getOrCreateUserProfile(session.user);
+          if (isMounted && userProfile) {
+            setUser(userProfile);
+            setActiveTab('home');
+            const tasksToday = await supabaseDataService.getTasksForDate(new Date());
+            setPendingAlerts(tasksToday.filter(t => !t.log).length);
+          }
+        } catch (error) {
+          console.error('Error in auth callback:', error);
+        } finally {
+          if (isMounted) setLoading(false);
         }
-        setLoading(false);
-      } else if (event === 'SIGNED_OUT') {
+      } else if (event === 'SIGNED_OUT' && isMounted) {
         setUser(null);
         setActiveTab('home');
+        setLoading(false);
       }
     });
 
     loadUser();
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
   }, []);
@@ -96,9 +108,16 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await supabaseDataService.logout();
-    setUser(null);
-    setActiveTab('home');
+    setLoading(true);
+    try {
+      await supabaseDataService.logout();
+      setUser(null);
+      setActiveTab('home');
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {
