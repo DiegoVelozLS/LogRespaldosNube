@@ -2,10 +2,15 @@
 export enum UserRole {
   ADMIN = 'ADMIN',
   TECH = 'TECH',
-  SUPERVISOR = 'SUPERVISOR',
-  RRHH = 'RRHH',
-  EMPLOYEE = 'EMPLOYEE'
+  SOPORTE = 'SOPORTE'
 }
+
+// Etiquetas legibles para los roles
+export const ROLE_LABELS: Record<UserRole, string> = {
+  [UserRole.ADMIN]: 'Administrador',
+  [UserRole.TECH]: 'Técnico',
+  [UserRole.SOPORTE]: 'Soporte',
+};
 
 // ==================== INTRANET TYPES ====================
 
@@ -46,9 +51,6 @@ export interface Document {
   category: string;
   categoryId: string;
   fileUrl: string;
-  visibleRoles: string[];
-  uploadedBy: string;
-  uploadedByName: string;
   createdAt: string;
   fileSize: string;
   fileType: string;
@@ -78,24 +80,13 @@ export interface Employee {
   role: string;
 }
 
-
-
-export interface Role {
-  id: string;
-  name: string;
-  description?: string;
-  permissions?: string[];
-}
-
 export interface User {
   id: string;
   name: string;
   lastName: string;
   email: string;
   password?: string;
-  role: string; // Cambio de UserRole a string para ser dinámico
-  roleId?: string;
-  permissions?: string[]; // Lista de keys: 'dashboard', 'calendar', etc.
+  role: string;
 }
 
 export enum BackupStatus {

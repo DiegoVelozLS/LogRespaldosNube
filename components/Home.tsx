@@ -154,7 +154,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
   };
 
   const totalEmployees = employees.length;
-  const totalDocuments = MOCK_DOCUMENTS.filter(d => d.visibleRoles.includes(user.role)).length;
+  const totalDocuments = MOCK_DOCUMENTS.length;
   const pinnedAnnouncements = visibleAnnouncements.filter(a => a.isPinned).length;
 
   return (

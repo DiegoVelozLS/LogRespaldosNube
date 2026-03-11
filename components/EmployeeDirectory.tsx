@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Employee } from '../types';
+import { User, Employee, UserRole } from '../types';
 import { supabaseDataService } from '../services/supabaseDataService';
 
 // Departamentos fijos con colores institucionales
@@ -23,6 +23,12 @@ interface EmployeeDirectoryProps {
 }
 
 const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
+  // Solo ADMIN puede crear/editar/eliminar empleados
+  const isAdmin = user.role === UserRole.ADMIN;
+  const canCreate = isAdmin;
+  const canEdit = isAdmin;
+  const canDelete = isAdmin;
+
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -41,7 +47,7 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
     position: '',
     phone: '',
     extension: '',
-    role: 'EMPLOYEE'
+    role: 'SOPORTE'
   });
 
   useEffect(() => {
@@ -64,7 +70,7 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
     if (created) {
       setEmployees(prev => [...prev, created].sort((a, b) => (a.name + a.lastName).localeCompare(b.name + b.lastName)));
       setIsCreatingEmployee(false);
-      setNewEmployee({ name: '', lastName: '', email: '', department: '', position: '', phone: '', extension: '', role: 'EMPLOYEE' });
+      setNewEmployee({ name: '', lastName: '', email: '', department: '', position: '', phone: '', extension: '', role: 'SOPORTE' });
     } else {
       alert("Hubo un error al crear el empleado.");
     }
@@ -148,10 +154,9 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case 'ADMIN': return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700">Admin</span>;
-      case 'SUPERVISOR': return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700">Supervisor</span>;
       case 'TECH': return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">Técnico</span>;
-      case 'RRHH': return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-700">RRHH</span>;
-      default: return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-slate-100 text-slate-700">Empleado</span>;
+      case 'SOPORTE': return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">Soporte</span>;
+      default: return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-slate-100 text-slate-700">{role}</span>;
     }
   };
 
@@ -171,7 +176,7 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
           <span className="text-sm font-medium text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
             {employees.length} colaboradores
           </span>
-          {(user.role === 'ADMIN' || user.role === 'RRHH') && (
+          {canCreate && (
             <button
               onClick={() => setIsCreatingEmployee(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2"
@@ -332,35 +337,35 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
                           </svg>
                         </a>
                       )}
-                      {(user.role === 'ADMIN' || user.role === 'RRHH') && (
-                        <>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedEmployee(employee);
-                              startEditing();
-                            }}
-                            className="p-2 text-amber-600 hover:bg-amber-50 rounded-full transition"
-                            title="Editar empleado"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedEmployee(employee);
-                              setIsDeletingEmployee(true);
-                            }}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-full transition"
-                            title="Eliminar empleado"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </>
+                      {canEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedEmployee(employee);
+                            startEditing();
+                          }}
+                          className="p-2 text-amber-600 hover:bg-amber-50 rounded-full transition"
+                          title="Editar empleado"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedEmployee(employee);
+                            setIsDeletingEmployee(true);
+                          }}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-full transition"
+                          title="Eliminar empleado"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
                       )}
                     </div>
                   </div>
@@ -450,35 +455,35 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
                               </svg>
                             </a>
                           )}
-                          {(user.role === 'ADMIN' || user.role === 'RRHH') && (
-                            <>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedEmployee(employee);
-                                  startEditing();
-                                }}
-                                className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition"
-                                title="Editar empleado"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                </svg>
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedEmployee(employee);
-                                  setIsDeletingEmployee(true);
-                                }}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                                title="Eliminar empleado"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
-                            </>
+                          {canEdit && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedEmployee(employee);
+                                startEditing();
+                              }}
+                              className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                              title="Editar empleado"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedEmployee(employee);
+                                setIsDeletingEmployee(true);
+                              }}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                              title="Eliminar empleado"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
                           )}
                         </div>
                       </td>
@@ -616,8 +621,9 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
                     )}
                   </div>
 
-                  {(user.role === 'ADMIN' || user.role === 'RRHH') && (
+                  {(canEdit || canDelete) && (
                     <div className="flex justify-center gap-2 mt-3 pt-3 border-t border-slate-100">
+                      {canEdit && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -630,6 +636,8 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
                         </svg>
                         Editar
                       </button>
+                      )}
+                      {canDelete && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -642,6 +650,7 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
                         </svg>
                         Eliminar
                       </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -687,7 +696,7 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => {
               setIsCreatingEmployee(false);
               setIsEditingEmployee(false);
-              setNewEmployee({ name: '', lastName: '', email: '', department: '', position: '', phone: '', extension: '', role: 'EMPLOYEE' });
+              setNewEmployee({ name: '', lastName: '', email: '', department: '', position: '', phone: '', extension: '', role: 'SOPORTE' });
             }}>
               <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6">
@@ -696,7 +705,7 @@ const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
                     onClick={() => {
                       setIsCreatingEmployee(false);
                       setIsEditingEmployee(false);
-                      setNewEmployee({ name: '', lastName: '', email: '', department: '', position: '', phone: '', extension: '', role: 'EMPLOYEE' });
+                      setNewEmployee({ name: '', lastName: '', email: '', department: '', position: '', phone: '', extension: '', role: 'SOPORTE' });
                     }}
                     className="text-slate-400 hover:text-slate-600"
                   >

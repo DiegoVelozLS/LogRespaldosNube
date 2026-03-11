@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserRole, ClientEntry, Server, ClientContact } from '../types';
+import { UserRole, ClientEntry, Server, ClientContact, User } from '../types';
 import { supabaseDataService } from '../services/supabaseDataService';
 
 interface ClientFormData {
@@ -44,10 +44,16 @@ const INITIAL_CONTACT_FORM: ContactFormData = {
 };
 
 interface ClientDirectoryProps {
-    role: UserRole;
+    user: User;
 }
 
-const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
+const ClientDirectory: React.FC<ClientDirectoryProps> = ({ user }) => {
+    // Solo ADMIN puede crear/editar/eliminar clientes
+    const isAdmin = user.role === UserRole.ADMIN;
+    const canCreate = isAdmin;
+    const canEdit = isAdmin;
+    const canDelete = isAdmin;
+
     // Pending: lo que el usuario configura
     const [pendingSearch, setPendingSearch] = useState('');
     const [pendingServer, setPendingServer] = useState('Todos');
@@ -75,8 +81,6 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
     const [editingContact, setEditingContact] = useState<ClientContact | null>(null);
     const [contactForm, setContactForm] = useState<ContactFormData>(INITIAL_CONTACT_FORM);
     const [contactSaving, setContactSaving] = useState(false);
-
-    const isAdmin = role === UserRole.ADMIN;
 
     useEffect(() => {
         loadClients();
@@ -290,7 +294,7 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
                     <h2 className="text-3xl font-bold text-slate-800">Directorio de Clientes</h2>
                     <p className="text-slate-500 text-sm mt-1">Gestión de bases de datos y suscripciones</p>
                 </div>
-                {isAdmin && (
+                {canCreate && (
                     <button
                         onClick={openNewForm}
                         className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm transition"
@@ -517,9 +521,10 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
                             </button>
                         </div>
 
-                        {isAdmin && (
+                        {(canEdit || canDelete) && (
                             <div className="px-6 pb-6 flex flex-col gap-3 mt-3">
                                 <div className="flex gap-3">
+                                    {canEdit && (
                                     <button
                                         onClick={() => {
                                             if (!selectedRow) return;
@@ -534,6 +539,8 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
                                         </svg>
                                         Editar Registro
                                     </button>
+                                    )}
+                                    {canDelete && (
                                     <button
                                         onClick={() => handleDelete(selectedRow.id)}
                                         className="flex-1 bg-red-50 text-red-600 py-2.5 rounded-xl font-bold hover:bg-red-100 transition text-sm border border-red-200 flex items-center justify-center gap-2"
@@ -543,6 +550,7 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
                                         </svg>
                                         Eliminar Registro
                                     </button>
+                                    )}
                                 </div>
                                 <button
                                     onClick={() => setSelectedRow(null)}
@@ -552,7 +560,7 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
                                 </button>
                             </div>
                         )}
-                        {!isAdmin && (
+                        {!(canEdit || canDelete) && (
                             <div className="px-6 pb-6 mt-2">
                                 <button
                                     onClick={() => setSelectedRow(null)}
@@ -586,7 +594,7 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
-                                {isAdmin && !showContactForm && (
+                                {canCreate && !showContactForm && (
                                     <button
                                         onClick={openNewContactForm}
                                         className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition shadow-sm"
@@ -703,7 +711,7 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
                                     </div>
                                     <p className="text-slate-500 font-semibold text-sm">Sin contactos registrados</p>
                                     <p className="text-slate-400 text-xs mt-1">
-                                        {isAdmin ? 'Usa el botón "Agregar" para añadir el primer contacto.' : 'Este cliente no tiene contactos registrados.'}
+                                        {canCreate ? 'Usa el botón "Agregar" para añadir el primer contacto.' : 'Este cliente no tiene contactos registrados.'}
                                     </p>
                                 </div>
                             ) : (
@@ -745,8 +753,9 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
                                                     )}
                                                 </div>
                                             </div>
-                                            {isAdmin && (
+                                            {(canEdit || canDelete) && (
                                                 <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                    {canEdit && (
                                                     <button
                                                         onClick={() => openEditContactForm(contact)}
                                                         className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
@@ -756,6 +765,8 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                         </svg>
                                                     </button>
+                                                    )}
+                                                    {canDelete && (
                                                     <button
                                                         onClick={() => handleDeleteContact(contact.id)}
                                                         className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
@@ -765,6 +776,7 @@ const ClientDirectory: React.FC<ClientDirectoryProps> = ({ role }) => {
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                         </svg>
                                                     </button>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>

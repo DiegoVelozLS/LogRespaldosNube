@@ -22,7 +22,7 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
     const [priority, setPriority] = useState<AnnouncementPriority>(AnnouncementPriority.NORMAL);
     const [isPinned, setIsPinned] = useState(false);
     const [deadline, setDeadline] = useState('');
-    const [visibleRoles, setVisibleRoles] = useState<string[]>([UserRole.ADMIN, UserRole.TECH, UserRole.SUPERVISOR, UserRole.RRHH, UserRole.EMPLOYEE]);
+    const [visibleRoles, setVisibleRoles] = useState<string[]>([UserRole.ADMIN, UserRole.TECH, UserRole.SOPORTE]);
 
     useEffect(() => {
         if (announcement) {
@@ -40,7 +40,7 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
             setPriority(AnnouncementPriority.NORMAL);
             setIsPinned(false);
             setDeadline('');
-            setVisibleRoles([UserRole.ADMIN, UserRole.TECH, UserRole.SUPERVISOR, UserRole.RRHH, UserRole.EMPLOYEE]);
+            setVisibleRoles([UserRole.ADMIN, UserRole.TECH, UserRole.SOPORTE]);
         }
     }, [announcement, isOpen]);
 

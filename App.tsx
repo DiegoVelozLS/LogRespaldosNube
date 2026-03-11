@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, UserRole } from './types';
+import { User, UserRole, ROLE_LABELS } from './types';
 import { APP_VERSION } from './constants';
 import { supabaseDataService } from './services/supabaseDataService';
 import { supabase } from './services/supabaseClient';
@@ -205,7 +205,15 @@ const App: React.FC = () => {
     );
   }
 
-  const hasPermission = (key: string) => user.permissions?.includes(key) || user.role === 'ADMIN';
+  // Funciones de acceso por rol
+  const isAdmin = user.role === UserRole.ADMIN;
+  const isTech = user.role === UserRole.TECH;
+  const isSoporte = user.role === UserRole.SOPORTE;
+  
+  // ADMIN y TECH pueden ver respaldos, SOPORTE no
+  const canViewBackups = isAdmin || isTech;
+  // Solo ADMIN puede ver administración
+  const canViewAdmin = isAdmin;
 
   const handleNavigate = (tab: string) => {
     setActiveTab(tab as TabType);
@@ -250,17 +258,8 @@ const App: React.FC = () => {
             <span className="font-medium">Directorio</span>
           </button>
 
-          {hasPermission('clients') && (
-            <button onClick={() => setActiveTab('clients')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'clients' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
-              <span className="font-medium">Clientes</span>
-            </button>
-          )}
-
-          {/* Sección Sistema de Respaldos */}
-          {hasPermission('dashboard') && (
+          {/* Sección Sistema de Respaldos - Solo ADMIN y TECH */}
+          {canViewBackups && (
             <>
               <div className="pt-4 pb-2">
                 <p className="text-xs text-slate-500 uppercase tracking-wider px-4">Respaldos</p>
@@ -272,26 +271,29 @@ const App: React.FC = () => {
                 {pendingAlerts > 0 && <span className="ml-auto bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">{pendingAlerts}</span>}
               </button>
 
-              {hasPermission('register') && (
-                <button onClick={() => setActiveTab('register')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'register' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-                  <ClockIcon />
-                  <span className="font-medium">Registrar</span>
-                </button>
-              )}
+              <button onClick={() => setActiveTab('register')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'register' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                <ClockIcon />
+                <span className="font-medium">Registrar</span>
+              </button>
 
-              {hasPermission('reports') && (
-                <button onClick={() => setActiveTab('reports')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'reports' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <span className="font-medium">Reportes</span>
-                </button>
-              )}
+              <button onClick={() => setActiveTab('reports')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'reports' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span className="font-medium">Reportes</span>
+              </button>
+
+              <button onClick={() => setActiveTab('clients')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'clients' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                <span className="font-medium">Clientes</span>
+              </button>
             </>
           )}
 
-          {/* Sección Admin */}
-          {hasPermission('admin') && (
+          {/* Sección Admin - Solo ADMIN */}
+          {canViewAdmin && (
             <>
               <div className="pt-4 pb-2">
                 <p className="text-xs text-slate-500 uppercase tracking-wider px-4">Admin</p>
@@ -312,7 +314,7 @@ const App: React.FC = () => {
             <div className="text-blue-400"><UserCircleIcon /></div>
             <div className="overflow-hidden text-left">
               <p className="text-sm font-semibold truncate">{user.name} {user.lastName}</p>
-              <p className="text-xs text-slate-500 uppercase tracking-wider">{user.role}</p>
+              <p className="text-xs text-slate-500 uppercase tracking-wider">{ROLE_LABELS[user.role as UserRole] || user.role}</p>
             </div>
           </button>
           <button onClick={handleLogout} className="w-full py-2 px-4 rounded-lg bg-slate-800 hover:text-red-400 text-slate-400 text-sm font-medium transition">
@@ -325,7 +327,7 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto p-6">
           {activeTab === 'home' && <Home user={user} onNavigate={handleNavigate} />}
           {activeTab === 'announcements' && <Announcements user={user} />}
-          {activeTab === 'documents' && <DocumentRepository user={user} />}
+          {activeTab === 'documents' && <DocumentRepository />}
           {activeTab === 'employees' && <EmployeeDirectory user={user} />}
           {activeTab === 'backups' && <Dashboard user={user} onRefresh={() => { }} onNavigateToRegister={(scheduleId) => {
             setSelectedTaskId(scheduleId);
@@ -335,10 +337,10 @@ const App: React.FC = () => {
             setSelectedTaskId(undefined);
             setActiveTab('backups');
           }} />}
-          {activeTab === 'admin' && <AdminPanel role={user.role} />}
-          {activeTab === 'stats' && <AdminPanel role={user.role} initialTab="stats" />}
+          {activeTab === 'admin' && <AdminPanel user={user} />}
+          {activeTab === 'stats' && <AdminPanel user={user} initialTab="stats" />}
           {activeTab === 'profile' && <AccountProfile user={user} />}
-          {activeTab === 'clients' && <ClientDirectory role={user.role} />}
+          {activeTab === 'clients' && <ClientDirectory user={user} />}
           {activeTab === 'reports' && <MonthlyReport user={user} />}
         </div>
       </main>

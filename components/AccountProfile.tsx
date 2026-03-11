@@ -94,7 +94,7 @@ const AccountProfile: React.FC<AccountProfileProps> = ({ user }) => {
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Rol del Sistema</label>
                 <p className="text-lg font-semibold text-slate-800">
                   {user.role === 'ADMIN' ? 'Administrador' : 
-                   user.role === 'TECH' ? 'Técnico' : 'Supervisor'}
+                   user.role === 'TECH' ? 'Técnico' : 'Soporte'}
                 </p>
               </div>
               
@@ -150,19 +150,19 @@ const AccountProfile: React.FC<AccountProfileProps> = ({ user }) => {
                 </>
               )}
               
-              {user.role === 'SUPERVISOR' && (
+              {user.role === 'SOPORTE' && (
                 <>
                   <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
                     <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
-                    <span className="text-sm font-medium text-slate-700">Acceso a estadísticas y reportes</span>
+                    <span className="text-sm font-medium text-slate-700">Acceso a Intranet</span>
                   </div>
                   <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
                     <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
-                    <span className="text-sm font-medium text-slate-700">Monitoreo del sistema</span>
+                    <span className="text-sm font-medium text-slate-700">Anuncios, documentos y directorio</span>
                   </div>
                 </>
               )}
