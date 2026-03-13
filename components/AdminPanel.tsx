@@ -361,9 +361,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
     }
 
     if (editingUser) {
-      await supabaseDataService.updateUser(editingUser.id, userData as any);
+      const success = await supabaseDataService.updateUser(editingUser.id, userData as any);
+      if (!success) {
+        alert('Error al actualizar el usuario. Verifica que tengas permisos de administrador.');
+        return;
+      }
     } else {
-      await supabaseDataService.saveUser(userData as any);
+      const created = await supabaseDataService.saveUser(userData as any);
+      if (!created) {
+        alert('Error al crear el usuario.');
+        return;
+      }
     }
     const updatedUsers = await supabaseDataService.getUsers();
     setUsers(updatedUsers);
@@ -576,7 +584,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
           </div>
 
           {showUserForm && (
-            <form onSubmit={handleCreateUser} className="mb-8 p-6 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+            <form key={editingUser?.id || 'new'} onSubmit={handleCreateUser} className="mb-8 p-6 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
               <h4 className="text-lg font-bold text-slate-800 mb-2">{editingUser ? 'Editar Usuario' : 'Nuevo Usuario'}</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input name="name" defaultValue={editingUser?.name} placeholder="Nombre" required className="p-2 border rounded-lg bg-white" />

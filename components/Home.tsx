@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { User, Announcement, AnnouncementCategory, AnnouncementPriority, Employee } from '../types';
-import { MOCK_DOCUMENTS } from '../constants';
 import { announcementService } from '../services/announcementService';
 import { supabaseDataService } from '../services/supabaseDataService';
+import { googleDriveService } from '../services/googleDriveService';
 
 interface HomeProps {
   user: User;
@@ -85,17 +85,20 @@ const BoltIcon = () => (
 const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [docCount, setDocCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const [announcementsData, employeesData] = await Promise.all([
+      const [announcementsData, employeesData, totalDocs] = await Promise.all([
         announcementService.getAnnouncements(),
-        supabaseDataService.getEmployees()
+        supabaseDataService.getEmployees(),
+        googleDriveService.getTotalDocumentCount()
       ]);
       setAnnouncements(announcementsData);
       setEmployees(employeesData);
+      setDocCount(totalDocs);
       setLoading(false);
     };
 
@@ -154,7 +157,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
   };
 
   const totalEmployees = employees.length;
-  const totalDocuments = MOCK_DOCUMENTS.length;
+  const totalDocuments = docCount;
   const pinnedAnnouncements = visibleAnnouncements.filter(a => a.isPinned).length;
 
   return (
