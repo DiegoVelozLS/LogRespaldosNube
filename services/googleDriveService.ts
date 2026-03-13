@@ -27,7 +27,8 @@ export const googleDriveService = {
             const query = `'${folderId}' in parents and trashed = false`;
             const fields = 'files(id, name, mimeType, size, modifiedTime, description, webViewLink)';
             const response = await fetch(
-                `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&key=${GOOGLE_API_KEY}`
+                `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&key=${GOOGLE_API_KEY}`,
+                { credentials: 'omit' }
             );
 
             if (!response.ok) {
