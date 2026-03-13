@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Document, DocumentCategory } from '../types';
 import { googleDriveService } from '../services/googleDriveService';
+import { supabaseDataService } from '../services/supabaseDataService';
 
 // Iconos SVG minimalistas
 const FolderIcon = () => (
@@ -38,7 +39,8 @@ const DocumentRepository: React.FC = () => {
     const loadInitialData = async () => {
       try {
         setIsLoading(true);
-        const { folders } = await googleDriveService.getFolderContents();
+        const token = await supabaseDataService.getGoogleToken();
+        const { folders } = await googleDriveService.getFolderContents(undefined, token || undefined);
         const { categories: mappedCategories } = googleDriveService.mapGoogleItems(folders, [], '', '');
         setCategories(mappedCategories);
       } catch (error) {
@@ -56,7 +58,8 @@ const DocumentRepository: React.FC = () => {
       const loadCategoryData = async () => {
         try {
           setIsLoading(true);
-          const { files } = await googleDriveService.getFolderContents(selectedCategory);
+          const token = await supabaseDataService.getGoogleToken();
+          const { files } = await googleDriveService.getFolderContents(selectedCategory, token || undefined);
           const { documents: mappedDocs } = googleDriveService.mapGoogleItems([], files, currentCategoryName, selectedCategory);
           setDocuments(mappedDocs);
         } catch (error) {

@@ -92,11 +92,14 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
     const fetchData = async () => {
       setLoading(true);
       try {
+        // Obtenemos el token de Google para acceso seguro
+        const googleToken = await supabaseDataService.getGoogleToken();
+        
         // Ejecutamos las peticiones. Si Drive falla, retornamos 0 para no romper el resto de la página.
         const [announcementsData, employeesData, totalDocs] = await Promise.all([
           announcementService.getAnnouncements(),
           supabaseDataService.getEmployees(),
-          googleDriveService.getTotalDocumentCount().catch(err => {
+          googleDriveService.getTotalDocumentCount(googleToken || undefined).catch(err => {
             console.error('Counter error:', err);
             return 0;
           })

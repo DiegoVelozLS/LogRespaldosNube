@@ -13,7 +13,12 @@ export const supabaseDataService = {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: redirectTo
+        redirectTo: redirectTo,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+        scopes: 'https://www.googleapis.com/auth/drive.readonly'
       }
     });
     if (error) {
@@ -27,6 +32,12 @@ export const supabaseDataService = {
     try {
       console.log('getOrCreateUserProfile called with:', authUser.id, authUser.email);
       
+      // Validar dominio exclusivo de Listosoft
+      if (authUser.email && !authUser.email.toLowerCase().endsWith('@listosoft.com')) {
+        console.error('Acceso denegado: Dominio no autorizado', authUser.email);
+        await supabase.auth.signOut();
+        return null;
+      }
       // Primero intentar obtener el perfil existente
       const { data: existingProfile, error: fetchError } = await supabase
         .from('users')
@@ -148,6 +159,18 @@ export const supabaseDataService = {
       return null;
     } catch (error) {
       console.error('Get current user error:', error);
+      return null;
+    }
+  },
+
+  getGoogleToken: async (): Promise<string | null> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.provider_token;
+      console.log('Google Token status:', token ? 'Token presente' : 'Token AUSENTE (null)');
+      return token || null;
+    } catch (error) {
+      console.error('Error getting Google token:', error);
       return null;
     }
   },

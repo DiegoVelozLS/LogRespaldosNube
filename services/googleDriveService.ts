@@ -15,24 +15,41 @@ export interface GoogleFile {
 
 export const googleDriveService = {
     /**
-     * Obtiene el contenido de una carpeta de Google Drive
+     * Obtiene el contenido de una carpeta de Google Drive usando API Key o Access Token
      */
-    async getFolderContents(folderId: string = ROOT_FOLDER_ID): Promise<{ files: GoogleFile[], folders: GoogleFile[] }> {
-        if (!GOOGLE_API_KEY) {
-            console.warn('Google API Key not found');
+    async getFolderContents(folderId: string = ROOT_FOLDER_ID, accessToken?: string): Promise<{ files: GoogleFile[], folders: GoogleFile[] }> {
+        // Si no hay API KEY ni Token, no podemos hacer nada
+        if (!GOOGLE_API_KEY && !accessToken) {
+            console.warn('Google Credentials not found');
             return { files: [], folders: [] };
         }
 
         try {
             const query = `'${folderId}' in parents and trashed = false`;
             const fields = 'files(id, name, mimeType, size, modifiedTime, description, webViewLink)';
-            const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&key=${GOOGLE_API_KEY}`;
             
-            const response = await fetch(url);
+            // Si tenemos token, no enviamos la API KEY en la URL
+            const url = accessToken 
+                ? `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}`
+                : `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&key=${GOOGLE_API_KEY}`;
+            
+            const headers: HeadersInit = {};
+            if (accessToken) {
+                headers['Authorization'] = `Bearer ${accessToken}`;
+                console.log('GoogleDriveService: Usando Access Token (OAuth)');
+            } else {
+                console.warn('GoogleDriveService: No hay Access Token, operando en modo anónimo');
+            }
+
+            const response = await fetch(url, { headers });
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                console.error('Google Drive API Error:', response.status, errorData);
+                console.group('ERROR Google Drive API');
+                console.error('Status:', response.status);
+                console.error('Mensaje de Google:', errorData?.error?.message || 'Sin mensaje detallado');
+                console.error('Objeto completo:', errorData);
+                console.groupEnd();
                 return { files: [], folders: [] };
             }
 
@@ -50,20 +67,18 @@ export const googleDriveService = {
     },
 
     /**
-     * Obtiene el conteo total de documentos en la carpeta raíz y sus subcarpetas inmediatas
+     * Obtiene el conteo total de documentos usando OAuth para mayor seguridad
      */
-    async getTotalDocumentCount(): Promise<number> {
-        if (!GOOGLE_API_KEY) return 0;
+    async getTotalDocumentCount(accessToken?: string): Promise<number> {
+        if (!GOOGLE_API_KEY && !accessToken) return 0;
 
         try {
-            // Usamos la referencia directa al objeto para evitar problemas con 'this'
-            const { files, folders } = await googleDriveService.getFolderContents(ROOT_FOLDER_ID);
+            const { files, folders } = await googleDriveService.getFolderContents(ROOT_FOLDER_ID, accessToken);
             let totalCount = files.length;
 
-            // Para cada subcarpeta, sumamos sus archivos (limitado a primer nivel)
             if (folders && folders.length > 0) {
                 const results = await Promise.allSettled(
-                    folders.slice(0, 10).map(folder => googleDriveService.getFolderContents(folder.id))
+                    folders.slice(0, 10).map(folder => googleDriveService.getFolderContents(folder.id, accessToken))
                 );
 
                 results.forEach(result => {
