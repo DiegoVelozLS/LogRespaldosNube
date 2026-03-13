@@ -92,16 +92,21 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
     const fetchData = async () => {
       setLoading(true);
       try {
+        // Ejecutamos las peticiones. Si Drive falla, retornamos 0 para no romper el resto de la página.
         const [announcementsData, employeesData, totalDocs] = await Promise.all([
           announcementService.getAnnouncements(),
           supabaseDataService.getEmployees(),
-          googleDriveService.getTotalDocumentCount().catch(() => 0)
+          googleDriveService.getTotalDocumentCount().catch(err => {
+            console.error('Counter error:', err);
+            return 0;
+          })
         ]);
+        
         setAnnouncements(announcementsData);
         setEmployees(employeesData);
-        setDocCount(totalDocs);
+        setDocCount(totalDocs || 0);
       } catch (error) {
-        console.error('Error fetching dashboard data:', error);
+        console.error('Error loading dashboard data:', error);
       } finally {
         setLoading(false);
       }

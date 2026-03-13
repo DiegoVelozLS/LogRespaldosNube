@@ -26,15 +26,13 @@ export const googleDriveService = {
         try {
             const query = `'${folderId}' in parents and trashed = false`;
             const fields = 'files(id, name, mimeType, size, modifiedTime, description, webViewLink)';
-            // Eliminamos credentials: 'omit' por si causa problemas en ciertos navegadores
-            // La API Key por sí sola debería bastar para carpetas públicas
-            const response = await fetch(
-                `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&key=${GOOGLE_API_KEY}`
-            );
+            const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&key=${GOOGLE_API_KEY}`;
+            
+            const response = await fetch(url);
 
             if (!response.ok) {
-                const err = await response.json().catch(() => ({ message: response.statusText }));
-                console.error('Google Drive API error:', err);
+                const errorData = await response.json().catch(() => ({}));
+                console.error('Google Drive API Error:', response.status, errorData);
                 return { files: [], folders: [] };
             }
 
@@ -46,7 +44,7 @@ export const googleDriveService = {
                 files: allItems.filter(item => item.mimeType !== 'application/vnd.google-apps.folder'),
             };
         } catch (error) {
-            console.error('Error fetching from Google Drive:', error);
+            console.error('Fetch error from Google Drive:', error);
             return { files: [], folders: [] };
         }
     },
@@ -58,26 +56,26 @@ export const googleDriveService = {
         if (!GOOGLE_API_KEY) return 0;
 
         try {
-            // Usamos googleDriveService en lugar de 'this' para evitar problemas de contexto
+            // Usamos la referencia directa al objeto para evitar problemas con 'this'
             const { files, folders } = await googleDriveService.getFolderContents(ROOT_FOLDER_ID);
             let totalCount = files.length;
 
-            // Para el contador, solo sumamos lo que hay en el primer nivel de subcarpetas si existen
-            if (folders.length > 0) {
-                const counts = await Promise.all(folders.map(async (folder) => {
-                    try {
-                        const { files: subFiles } = await googleDriveService.getFolderContents(folder.id);
-                        return subFiles.length;
-                    } catch (e) {
-                        return 0;
+            // Para cada subcarpeta, sumamos sus archivos (limitado a primer nivel)
+            if (folders && folders.length > 0) {
+                const results = await Promise.allSettled(
+                    folders.slice(0, 10).map(folder => googleDriveService.getFolderContents(folder.id))
+                );
+
+                results.forEach(result => {
+                    if (result.status === 'fulfilled') {
+                        totalCount += result.value.files.length;
                     }
-                }));
-                totalCount += counts.reduce((acc, count) => acc + count, 0);
+                });
             }
-            
+
             return totalCount;
         } catch (error) {
-            console.error('Error calculating total document count:', error);
+            console.error('Error calculating total documents:', error);
             return 0;
         }
     },
@@ -86,14 +84,14 @@ export const googleDriveService = {
      * Mapea los datos de Google Drive al formato de la Intranet
      */
     mapGoogleItems(folders: GoogleFile[], files: GoogleFile[], categoryName: string, categoryId: string): { categories: DocumentCategory[], documents: Document[] } {
-        const categories: DocumentCategory[] = folders.map(folder => ({
+        const categories: DocumentCategory[] = (folders || []).map(folder => ({
             id: folder.id,
             name: folder.name,
             description: folder.description || `Carpeta de ${folder.name}`,
             icon: '📁',
         }));
 
-        const documents: Document[] = files.map(file => {
+        const documents: Document[] = (files || []).map(file => {
             const extension = file.name.split('.').pop()?.toUpperCase() || 'FILE';
             return {
                 id: file.id,
@@ -112,7 +110,7 @@ export const googleDriveService = {
     },
 
     formatBytes(bytes: number, decimals: number = 2): string {
-        if (bytes === 0) return '0 Bytes';
+        if (!bytes || bytes === 0) return '0 Bytes';
         const k = 1024;
         const dm = decimals < 0 ? 0 : decimals;
         const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];

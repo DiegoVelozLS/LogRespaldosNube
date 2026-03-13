@@ -7,10 +7,13 @@ export const supabaseDataService = {
   // ==================== AUTHENTICATION ====================
 
   loginWithGoogle: async (): Promise<void> => {
+    const redirectTo = window.location.origin;
+    console.log('Iniciando login con Google, redirigiendo a:', redirectTo);
+    
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin
+        redirectTo: redirectTo
       }
     });
     if (error) {
