@@ -26,13 +26,16 @@ export const googleDriveService = {
         try {
             const query = `'${folderId}' in parents and trashed = false`;
             const fields = 'files(id, name, mimeType, size, modifiedTime, description, webViewLink)';
+            // Eliminamos credentials: 'omit' por si causa problemas en ciertos navegadores
+            // La API Key por sí sola debería bastar para carpetas públicas
             const response = await fetch(
-                `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&key=${GOOGLE_API_KEY}`,
-                { credentials: 'omit' }
+                `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&key=${GOOGLE_API_KEY}`
             );
 
             if (!response.ok) {
-                throw new Error(`Google Drive API error: ${response.statusText}`);
+                const err = await response.json().catch(() => ({ message: response.statusText }));
+                console.error('Google Drive API error:', err);
+                return { files: [], folders: [] };
             }
 
             const data = await response.json();
@@ -55,18 +58,23 @@ export const googleDriveService = {
         if (!GOOGLE_API_KEY) return 0;
 
         try {
-            // Obtenemos el contenido de la carpeta raíz
-            const { files, folders } = await this.getFolderContents(ROOT_FOLDER_ID);
+            // Usamos googleDriveService en lugar de 'this' para evitar problemas de contexto
+            const { files, folders } = await googleDriveService.getFolderContents(ROOT_FOLDER_ID);
             let totalCount = files.length;
 
-            // Para cada subcarpeta, sumamos sus archivos
-            // Nota: Esto solo cuenta un nivel de profundidad para evitar exceder límites de API rápidamente
-            const counts = await Promise.all(folders.map(async (folder) => {
-                const { files: subFiles } = await this.getFolderContents(folder.id);
-                return subFiles.length;
-            }));
-
-            totalCount += counts.reduce((acc, count) => acc + count, 0);
+            // Para el contador, solo sumamos lo que hay en el primer nivel de subcarpetas si existen
+            if (folders.length > 0) {
+                const counts = await Promise.all(folders.map(async (folder) => {
+                    try {
+                        const { files: subFiles } = await googleDriveService.getFolderContents(folder.id);
+                        return subFiles.length;
+                    } catch (e) {
+                        return 0;
+                    }
+                }));
+                totalCount += counts.reduce((acc, count) => acc + count, 0);
+            }
+            
             return totalCount;
         } catch (error) {
             console.error('Error calculating total document count:', error);
@@ -94,7 +102,7 @@ export const googleDriveService = {
                 name: file.name,
                 description: file.description || '',
                 fileType: extension,
-                fileSize: this.formatBytes(parseInt(file.size || '0')),
+                fileSize: googleDriveService.formatBytes(parseInt(file.size || '0')),
                 createdAt: file.modifiedTime,
                 fileUrl: file.webViewLink || '#',
             };

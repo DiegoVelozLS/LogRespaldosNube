@@ -91,15 +91,20 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const [announcementsData, employeesData, totalDocs] = await Promise.all([
-        announcementService.getAnnouncements(),
-        supabaseDataService.getEmployees(),
-        googleDriveService.getTotalDocumentCount()
-      ]);
-      setAnnouncements(announcementsData);
-      setEmployees(employeesData);
-      setDocCount(totalDocs);
-      setLoading(false);
+      try {
+        const [announcementsData, employeesData, totalDocs] = await Promise.all([
+          announcementService.getAnnouncements(),
+          supabaseDataService.getEmployees(),
+          googleDriveService.getTotalDocumentCount().catch(() => 0)
+        ]);
+        setAnnouncements(announcementsData);
+        setEmployees(employeesData);
+        setDocCount(totalDocs);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
