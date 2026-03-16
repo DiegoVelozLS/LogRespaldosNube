@@ -166,7 +166,13 @@ export const supabaseDataService = {
   getGoogleToken: async (): Promise<string | null> => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.provider_token;
+      let token = session?.provider_token;
+      
+      // Si Supabase no nos da el token (ej: tras recargar la página), lo buscamos en el caché
+      if (!token) {
+        token = localStorage.getItem('google_provider_token') || undefined;
+      }
+
       console.log('Google Token status:', token ? 'Token presente' : 'Token AUSENTE (null)');
       return token || null;
     } catch (error) {
@@ -176,6 +182,7 @@ export const supabaseDataService = {
   },
 
   logout: async (): Promise<void> => {
+    localStorage.removeItem('google_provider_token');
     await supabase.auth.signOut();
   },
 

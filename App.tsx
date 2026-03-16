@@ -64,6 +64,12 @@ const App: React.FC = () => {
         try {
           const userProfile = await supabaseDataService.getOrCreateUserProfile(session.user);
           
+          // Guardar el token de Google para que persista al recargar la página
+          if (session.provider_token) {
+            localStorage.setItem('google_provider_token', session.provider_token);
+            console.log('Google provider_token guardado en localStorage');
+          }
+
           if (isMounted && userProfile) {
             setUser(userProfile);
             setActiveTab('home');
@@ -84,6 +90,7 @@ const App: React.FC = () => {
           if (isMounted) setLoading(false);
         }
       } else if (event === 'SIGNED_OUT' && isMounted) {
+        localStorage.removeItem('google_provider_token');
         setUser(null);
         setActiveTab('home');
         hasLoadedInitialUser = false;
