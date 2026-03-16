@@ -320,20 +320,30 @@ export const supabaseDataService = {
   updateUser: async (id: string, updates: Partial<Omit<User, 'id' | 'email'>> & { password?: string }): Promise<boolean> => {
     try {
       // 1. Actualizar datos del perfil usando función RPC segura
-      console.log('Updating user with:', updates, 'for id:', id);
+      console.log('=== INICIO UPDATE USER ===');
+      console.log('ID del usuario a actualizar:', id);
+      console.log('Datos a actualizar:', JSON.stringify(updates, null, 2));
+      console.log('Rol que se enviará:', updates.role);
 
-      const { data, error: profileError } = await supabase.rpc('admin_update_user', {
+      const rpcParams = {
         target_user_id: id,
         new_name: updates.name || null,
         new_last_name: updates.lastName || null,
         new_role: updates.role || null
-      });
+      };
+      console.log('Parámetros RPC:', JSON.stringify(rpcParams, null, 2));
+
+      const { data, error: profileError } = await supabase.rpc('admin_update_user', rpcParams);
 
       if (profileError) {
+        console.error('=== ERROR EN UPDATE ===');
         console.error('Profile update error:', profileError);
+        console.error('Error message:', profileError.message);
+        console.error('Error code:', profileError.code);
         throw profileError;
       }
 
+      console.log('=== UPDATE EXITOSO ===');
       console.log('Update result:', data);
 
       // 2. Si hay contraseña, actualizarla usando RPC seguro (auth.users)

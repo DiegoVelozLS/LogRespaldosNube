@@ -4,12 +4,12 @@ import { supabaseDataService } from '../services/supabaseDataService';
 
 // Departamentos fijos con colores institucionales
 const DEPARTMENTS: { name: string; color: string }[] = [
-  { name: 'Innovación', color: '#7C3AED' }, // morado
+  { name: 'Innovación', color: '#5a2bac' }, // morado
   { name: 'Soporte', color: '#166534' }, // verde oscuro
-  { name: 'Desarrollo', color: '#38BDF8' }, // celeste
-  { name: 'Administración', color: '#F97316' }, // naranja
-  { name: 'Contabilidad externa', color: '#94A3B8' }, // gris
-  { name: 'Servicios generales', color: '#67E8F9' }, // gris celeste
+  { name: 'Desarrollo', color: '#0281b7' }, // celeste
+  { name: 'Administración', color: '#a64703' }, // naranja
+  { name: 'Contabilidad externa', color: '#808d9f' }, // gris
+  { name: 'Servicios generales', color: '#ffffff' }, // gris celeste
   { name: 'Talento Humano', color: '#CA8A04' }, // dorado sobrio
   { name: 'Gerencia', color: '#1E3A5F' }, // azul oscuro formal
 ];

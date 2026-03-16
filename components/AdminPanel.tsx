@@ -309,6 +309,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
   const [deleteUserModalOpen, setDeleteUserModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
+  // Estados controlados para el formulario de usuario
+  const [formName, setFormName] = useState('');
+  const [formLastName, setFormLastName] = useState('');
+  const [formEmail, setFormEmail] = useState('');
+  const [formPassword, setFormPassword] = useState('');
+  const [formRole, setFormRole] = useState<string>('SOPORTE');
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -338,16 +345,35 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
     }
   }, [menuOpenId, userMenuOpenId]);
 
+  // Resetear formulario cuando cambia editingUser
+  useEffect(() => {
+    if (editingUser) {
+      setFormName(editingUser.name);
+      setFormLastName(editingUser.lastName);
+      setFormEmail(editingUser.email);
+      setFormPassword('');
+      setFormRole(editingUser.role);
+    } else {
+      setFormName('');
+      setFormLastName('');
+      setFormEmail('');
+      setFormPassword('');
+      setFormRole('SOPORTE');
+    }
+  }, [editingUser]);
+
   const handleCreateUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
     const userData = {
-      name: fd.get('name') as string,
-      lastName: fd.get('lastName') as string,
-      email: fd.get('email') as string,
-      password: fd.get('password') as string,
-      role: fd.get('role') as string,
+      name: formName,
+      lastName: formLastName,
+      email: formEmail,
+      password: formPassword,
+      role: formRole,
     };
+    
+    console.log('Enviando datos de usuario:', userData);
+    console.log('Rol seleccionado:', formRole);
 
     // Validación de contraseña
     if (!editingUser && (!userData.password || userData.password.length < 6)) {
@@ -584,14 +610,53 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
           </div>
 
           {showUserForm && (
-            <form key={editingUser?.id || 'new'} onSubmit={handleCreateUser} className="mb-8 p-6 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+            <form onSubmit={handleCreateUser} className="mb-8 p-6 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
               <h4 className="text-lg font-bold text-slate-800 mb-2">{editingUser ? 'Editar Usuario' : 'Nuevo Usuario'}</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input name="name" defaultValue={editingUser?.name} placeholder="Nombre" required className="p-2 border rounded-lg bg-white" />
-                <input name="lastName" defaultValue={editingUser?.lastName} placeholder="Apellido" required className="p-2 border rounded-lg bg-white" />
-                <input name="email" type="email" defaultValue={editingUser?.email} placeholder="Correo (Username)" required className="p-2 border rounded-lg bg-white" />
-                <input name="password" type="password" placeholder={editingUser ? 'Nueva contraseña (dejar vacío para mantener)' : 'Contraseña'} required={!editingUser} className="p-2 border rounded-lg bg-white" />
-                <select name="role" defaultValue={editingUser?.role || 'SOPORTE'} className="p-2 border rounded-lg bg-white" required>
+                <input 
+                  name="name" 
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="Nombre" 
+                  required 
+                  className="p-2 border rounded-lg bg-white" 
+                />
+                <input 
+                  name="lastName" 
+                  value={formLastName}
+                  onChange={(e) => setFormLastName(e.target.value)}
+                  placeholder="Apellido" 
+                  required 
+                  className="p-2 border rounded-lg bg-white" 
+                />
+                <input 
+                  name="email" 
+                  type="email" 
+                  value={formEmail}
+                  onChange={(e) => setFormEmail(e.target.value)}
+                  placeholder="Correo (Username)" 
+                  required 
+                  className="p-2 border rounded-lg bg-white" 
+                />
+                <input 
+                  name="password" 
+                  type="password" 
+                  value={formPassword}
+                  onChange={(e) => setFormPassword(e.target.value)}
+                  placeholder={editingUser ? 'Nueva contraseña (dejar vacío para mantener)' : 'Contraseña'} 
+                  required={!editingUser} 
+                  className="p-2 border rounded-lg bg-white" 
+                />
+                <select 
+                  name="role" 
+                  value={formRole}
+                  onChange={(e) => {
+                    console.log('Rol cambiado a:', e.target.value);
+                    setFormRole(e.target.value);
+                  }}
+                  className="p-2 border rounded-lg bg-white" 
+                  required
+                >
                   <option value="ADMIN">Administrador - Acceso completo</option>
                   <option value="TECH">Técnico - Todo excepto administración</option>
                   <option value="SOPORTE">Soporte - Solo intranet</option>
