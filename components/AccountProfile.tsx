@@ -1,51 +1,14 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { User } from '../types';
 import { UserCircleIcon } from './Icons';
-import { supabaseDataService } from '../services/supabaseDataService';
+
 
 interface AccountProfileProps {
   user: User;
 }
 
 const AccountProfile: React.FC<AccountProfileProps> = ({ user }) => {
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState(false);
-
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPasswordError('');
-    setPasswordSuccess(false);
-
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Las contraseñas no coinciden');
-      return;
-    }
-
-    if (newPassword.length < 4) {
-      setPasswordError('La contraseña debe tener al menos 4 caracteres');
-      return;
-    }
-
-    const success = await supabaseDataService.changePassword(user.id, currentPassword, newPassword);
-    
-    if (success) {
-      setPasswordSuccess(true);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setTimeout(() => {
-        setShowPasswordForm(false);
-        setPasswordSuccess(false);
-      }, 2000);
-    } else {
-      setPasswordError('La contraseña actual es incorrecta');
-    }
-  };
   return (
     <div className="space-y-8 animate-fadeIn">
       <div>
@@ -168,110 +131,7 @@ const AccountProfile: React.FC<AccountProfileProps> = ({ user }) => {
               )}
             </div>
           </div>
-          {/* Cambio de Contraseña */}
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 mt-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-800">Seguridad</h3>
-              {!showPasswordForm && (
-                <button
-                  onClick={() => setShowPasswordForm(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition"
-                >
-                  Cambiar Contraseña
-                </button>
-              )}
-            </div>
-
-            {showPasswordForm ? (
-              <form onSubmit={handlePasswordChange} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Contraseña Actual</label>
-                  <input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    placeholder="Ingresa tu contraseña actual"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Nueva Contraseña</label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    placeholder="Mínimo 4 caracteres"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Confirmar Nueva Contraseña</label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    placeholder="Repite la nueva contraseña"
-                  />
-                </div>
-
-                {passwordError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-                    <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                    <span className="text-sm font-medium text-red-700">{passwordError}</span>
-                  </div>
-                )}
-
-                {passwordSuccess && (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
-                    <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    <span className="text-sm font-medium text-green-700">¡Contraseña actualizada exitosamente!</span>
-                  </div>
-                )}
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="submit"
-                    className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition"
-                  >
-                    Actualizar Contraseña
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPasswordForm(false);
-                      setPasswordError('');
-                      setCurrentPassword('');
-                      setNewPassword('');
-                      setConfirmPassword('');
-                    }}
-                    className="px-6 py-3 bg-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-300 transition"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg">
-                <svg className="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                </svg>
-                <div>
-                  <p className="text-sm font-semibold text-slate-700">Contraseña protegida</p>
-                  <p className="text-xs text-slate-500">Haz clic en "Cambiar Contraseña" para actualizarla</p>
-                </div>
-              </div>
-            )}
-          </div>        </div>
+        </div>
       </div>
     </div>
   );

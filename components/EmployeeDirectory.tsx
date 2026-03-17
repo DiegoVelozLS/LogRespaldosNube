@@ -23,11 +23,15 @@ interface EmployeeDirectoryProps {
 }
 
 const EmployeeDirectory: React.FC<EmployeeDirectoryProps> = ({ user }) => {
-  // Solo ADMIN puede crear/editar/eliminar empleados
+  // ADMIN, TECH, y SOPORTE pueden crear/editar/eliminar empleados
   const isAdmin = user.role === UserRole.ADMIN;
-  const canCreate = isAdmin;
-  const canEdit = isAdmin;
-  const canDelete = isAdmin;
+  const isTech = user.role === UserRole.TECH;
+  const isSoporte = user.role === UserRole.SOPORTE;
+  
+  const hasAccess = isAdmin || isTech || isSoporte;
+  const canCreate = hasAccess;
+  const canEdit = hasAccess;
+  const canDelete = hasAccess;
 
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');

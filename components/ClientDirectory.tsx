@@ -48,11 +48,14 @@ interface ClientDirectoryProps {
 }
 
 const ClientDirectory: React.FC<ClientDirectoryProps> = ({ user }) => {
-    // Solo ADMIN puede crear/editar/eliminar clientes
+    // ADMIN, TECH y SOPORTE pueden crear/editar. ADMIN y TECH pueden eliminar.
     const isAdmin = user.role === UserRole.ADMIN;
-    const canCreate = isAdmin;
-    const canEdit = isAdmin;
-    const canDelete = isAdmin;
+    const isSoporte = user.role === UserRole.SOPORTE;
+    const isTech = user.role === UserRole.TECH;
+    
+    const canCreate = isAdmin || isSoporte || isTech;
+    const canEdit = isAdmin || isSoporte || isTech;
+    const canDelete = isAdmin || isTech;
 
     // Pending: lo que el usuario configura
     const [pendingSearch, setPendingSearch] = useState('');
