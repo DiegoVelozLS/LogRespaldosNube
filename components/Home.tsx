@@ -119,7 +119,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
   }, []);
 
   const visibleAnnouncements = announcements.filter(
-    a => a.visibleRoles.includes(user.role) && (!a.deadline || new Date(a.deadline) >= new Date())
+    a => (!a.deadline || new Date(a.deadline) >= new Date())
   ).sort((a, b) => {
     if (a.isPinned && !b.isPinned) return -1;
     if (!a.isPinned && b.isPinned) return 1;
@@ -246,23 +246,43 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
           </p>
         </button>
 
-        <button
-          onClick={() => onNavigate('backups')}
-          className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 hover:shadow-md hover:border-amber-300 transition text-left"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
-              <ServerIcon />
+        {user.role === 'SOPORTE' ? (
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 opacity-60 cursor-not-allowed text-left">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">
+                <ServerIcon />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-400">Sistema</p>
+                <p className="text-sm text-slate-400">Respaldos</p>
+              </div>
             </div>
-            <div>
-              <p className="text-2xl font-bold text-slate-800">Sistema</p>
-              <p className="text-sm text-slate-500">Respaldos</p>
-            </div>
+            <p className="mt-3 text-xs text-slate-400 font-medium flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              Requiere permiso de acceso
+            </p>
           </div>
-          <p className="mt-3 text-xs text-amber-600 font-medium">
-            Control de backups
-          </p>
-        </button>
+        ) : (
+          <button
+            onClick={() => onNavigate('backups')}
+            className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 hover:shadow-md hover:border-amber-300 transition text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
+                <ServerIcon />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-800">Sistema</p>
+                <p className="text-sm text-slate-500">Respaldos</p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-amber-600 font-medium">
+              Control de backups
+            </p>
+          </button>
+        )}
       </div>
 
       {/* Sección de anuncios */}

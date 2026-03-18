@@ -35,13 +35,8 @@ const Announcements: React.FC<AnnouncementsProps> = ({ user }) => {
     setLoading(false);
   };
 
-  // Filtrar anuncios según el rol del usuario
-  const visibleAnnouncements = announcements.filter(
-    a => a.visibleRoles.includes(user.role)
-  );
-
   // Filtrar por categoría y búsqueda
-  const filteredAnnouncements = visibleAnnouncements
+  const filteredAnnouncements = announcements
     .filter(a => selectedCategory === 'ALL' || a.category === selectedCategory)
     .filter(a =>
       a.title.toLowerCase().includes(searchTerm.toLowerCase()) ||

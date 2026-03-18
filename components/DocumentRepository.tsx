@@ -33,18 +33,50 @@ const DocumentRepository: React.FC = () => {
   const [currentCategoryName, setCurrentCategoryName] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [noGoogleToken, setNoGoogleToken] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+
+  // Reconectar a Google Drive
+  const handleGoogleReconnect = async () => {
+    try {
+      setIsReconnecting(true);
+      await supabaseDataService.reauthenticateGoogle();
+      // El flujo de OAuth manejará la redirección y actualización del token
+    } catch (error) {
+      console.error('Error reconectando Google:', error);
+      alert('Error al reconectar con Google Drive. Por favor intente de nuevo.');
+      setIsReconnecting(false);
+    }
+  };
 
   // Cargar categorías iniciales (Raíz)
   useEffect(() => {
     const loadInitialData = async () => {
       try {
         setIsLoading(true);
+        setNoGoogleToken(false);
+        
         const token = await supabaseDataService.getGoogleToken();
+        
+        // Si no hay token, intentar refrescar la sesión
+        if (!token) {
+          console.log('Token no encontrado, intentando refrescar sesión...');
+          const refreshedToken = await supabaseDataService.refreshGoogleToken();
+          if (!refreshedToken) {
+            console.warn('No se pudo obtener token de Google - Google Drive no disponible');
+            setNoGoogleToken(true);
+            setCategories([]);
+            setIsLoading(false);
+            return;
+          }
+        }
+        
         const { folders } = await googleDriveService.getFolderContents(undefined, token || undefined);
         const { categories: mappedCategories } = googleDriveService.mapGoogleItems(folders, [], '', '');
         setCategories(mappedCategories);
       } catch (error) {
         console.error("Failed to load folders:", error);
+        setNoGoogleToken(true);
       } finally {
         setIsLoading(false);
       }
@@ -58,12 +90,27 @@ const DocumentRepository: React.FC = () => {
       const loadCategoryData = async () => {
         try {
           setIsLoading(true);
+          setNoGoogleToken(false);
+          
           const token = await supabaseDataService.getGoogleToken();
+          
+          // Si no hay token, intentar refrescar
+          if (!token) {
+            const refreshedToken = await supabaseDataService.refreshGoogleToken();
+            if (!refreshedToken) {
+              setNoGoogleToken(true);
+              setDocuments([]);
+              setIsLoading(false);
+              return;
+            }
+          }
+          
           const { files } = await googleDriveService.getFolderContents(selectedCategory, token || undefined);
           const { documents: mappedDocs } = googleDriveService.mapGoogleItems([], files, currentCategoryName, selectedCategory);
           setDocuments(mappedDocs);
         } catch (error) {
           console.error("Failed to load documents:", error);
+          setNoGoogleToken(true);
         } finally {
           setIsLoading(false);
         }
@@ -111,6 +158,30 @@ const DocumentRepository: React.FC = () => {
   if (!selectedCategory) {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
+        {/* Banner de Token Faltante */}
+        {noGoogleToken && (
+          <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <h3 className="font-semibold text-amber-900">Google Drive no conectado</h3>
+                <p className="text-sm text-amber-800 mt-1">
+                  Tu token de Google Drive ha expirado. Reconecta para ver los documentos corporativos.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleGoogleReconnect}
+              disabled={isReconnecting}
+              className="flex-shrink-0 px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isReconnecting ? 'Reconectando...' : 'Reconectar Google'}
+            </button>
+          </div>
+        )}
+        
         {/* Header con estilo más sobrio */}
         <div className="border-b border-slate-200 pb-6">
           <h1 className="text-3xl font-light text-slate-900 flex items-center gap-3">
@@ -131,41 +202,49 @@ const DocumentRepository: React.FC = () => {
                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900 mb-4"></div>
                <p className="text-slate-400 text-sm font-light uppercase tracking-widest">Sincronizando con Drive...</p>
              </div>
-          ) : categories?.map((category) => {
-            const colors = CATEGORY_COLORS[category.id] || CATEGORY_COLORS['default'];
+          ) : categories && categories.length > 0 ? (
+            categories.map((category) => {
+              const colors = CATEGORY_COLORS[category.id] || CATEGORY_COLORS['default'];
 
-            return (
-              <button
-                key={category.id}
-                onClick={() => {
-                  setSelectedCategory(category.id);
-                  setCurrentCategoryName(category.name);
-                }}
-                className="group relative bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all duration-300 overflow-hidden text-left"
-              >
-                {/* Indicador de acento sutil */}
-                <div className={`absolute top-0 left-0 bottom-0 w-1 ${colors.accent} opacity-0 group-hover:opacity-100 transition-opacity`} />
+              return (
+                <button
+                  key={category.id}
+                  onClick={() => {
+                    setSelectedCategory(category.id);
+                    setCurrentCategoryName(category.name);
+                  }}
+                  className="group relative bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all duration-300 overflow-hidden text-left"
+                >
+                  {/* Indicador de acento sutil */}
+                  <div className={`absolute top-0 left-0 bottom-0 w-1 ${colors.accent} opacity-0 group-hover:opacity-100 transition-opacity`} />
 
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-6">
-                    <div className="p-3 bg-slate-50 rounded-lg text-slate-400 group-hover:text-slate-600 transition-colors">
-                      <FolderIcon />
+                  <div className="p-6">
+                    <div className="flex items-start justify-between mb-6">
+                      <div className="p-3 bg-slate-50 rounded-lg text-slate-400 group-hover:text-slate-600 transition-colors">
+                        <FolderIcon />
+                      </div>
                     </div>
+
+                    <h3 className="text-lg font-semibold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">
+                      {category.name}
+                    </h3>
+
+                    <p className="text-sm text-slate-500 line-clamp-2 font-light">
+                      {category.description}
+                    </p>
                   </div>
-
-                  <h3 className="text-lg font-semibold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">
-                    {category.name}
-                  </h3>
-
-                  <p className="text-sm text-slate-500 line-clamp-2 font-light">
-                    {category.description}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
+                </button>
+              );
+            })
+          ) : (
+            <div className="col-span-full flex flex-col items-center justify-center py-20">
+              <svg className="w-16 h-16 text-slate-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className="text-slate-500 text-sm font-light">No hay carpetas disponibles</p>
+            </div>
+          )}
         </div>
-
 
         {/* Info de documentos totales */}
         <div className="text-center">
@@ -185,6 +264,30 @@ const DocumentRepository: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+      {/* Banner de Token Faltante */}
+      {noGoogleToken && (
+        <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <h3 className="font-semibold text-amber-900">Google Drive no conectado</h3>
+              <p className="text-sm text-amber-800 mt-1">
+                Tu token de Google Drive ha expirado. Reconecta para cargar los documentos.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleGoogleReconnect}
+            disabled={isReconnecting}
+            className="flex-shrink-0 px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isReconnecting ? 'Reconectando...' : 'Reconectar Google'}
+          </button>
+        </div>
+      )}
+      
       {/* Breadcrumb y Header */}
       <div className="border-b border-slate-200 pb-6">
         {/* Breadcrumb Sutil */}

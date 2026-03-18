@@ -38,6 +38,19 @@ const App: React.FC = () => {
         const savedUser = await supabaseDataService.getCurrentUser();
         if (isMounted && savedUser) {
           setUser(savedUser);
+          
+          // Intentar refrescar el token de Google en background
+          // para asegurar que esté actualizado
+          try {
+            const token = await supabaseDataService.getGoogleToken();
+            if (!token) {
+              console.log('Intentando refrescar token de Google...');
+              await supabaseDataService.refreshGoogleToken();
+            }
+          } catch (tokenError) {
+            console.warn('No se pudo refrescar token de Google:', tokenError);
+            // No es crítico, el usuario puede reconectar en DocumentRepository
+          }
           setActiveTab('home');
           hasLoadedInitialUser = true;
           const tasksToday = await supabaseDataService.getTasksForDate(new Date());

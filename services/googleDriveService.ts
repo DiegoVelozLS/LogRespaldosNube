@@ -45,11 +45,27 @@ export const googleDriveService = {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                console.group('ERROR Google Drive API');
-                console.error('Status:', response.status);
-                console.error('Mensaje de Google:', errorData?.error?.message || 'Sin mensaje detallado');
-                console.error('Objeto completo:', errorData);
-                console.groupEnd();
+                const errorMessage = errorData?.error?.message || 'Error desconocido';
+                
+                // Detectar si es problema de autenticación
+                if (response.status === 401) {
+                    console.group('❌ ERROR de Autenticación Google Drive');
+                    console.error('El token de acceso ha expirado o no es válido');
+                    console.error('Mensaje:', errorMessage);
+                    console.groupEnd();
+                } else if (response.status === 403) {
+                    console.group('❌ ERROR de Autorización Google Drive');
+                    console.error('No tienes permiso para acceder a esta carpeta');
+                    console.error('Mensaje:', errorMessage);
+                    console.groupEnd();
+                } else {
+                    console.group('⚠️ ERROR Google Drive API');
+                    console.error('Status:', response.status);
+                    console.error('Mensaje:', errorMessage);
+                    console.error('Objeto completo:', errorData);
+                    console.groupEnd();
+                }
+                
                 return { files: [], folders: [] };
             }
 
@@ -61,7 +77,7 @@ export const googleDriveService = {
                 files: allItems.filter(item => item.mimeType !== 'application/vnd.google-apps.folder'),
             };
         } catch (error) {
-            console.error('Fetch error from Google Drive:', error);
+            console.error('❌ Fetch error from Google Drive:', error);
             return { files: [], folders: [] };
         }
     },

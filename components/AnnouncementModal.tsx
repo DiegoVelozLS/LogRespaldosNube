@@ -22,7 +22,7 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
     const [priority, setPriority] = useState<AnnouncementPriority>(AnnouncementPriority.NORMAL);
     const [isPinned, setIsPinned] = useState(false);
     const [deadline, setDeadline] = useState('');
-    const [visibleRoles, setVisibleRoles] = useState<string[]>([UserRole.ADMIN, UserRole.TECH, UserRole.SOPORTE]);
+    const allRoles = Object.values(UserRole);
 
     useEffect(() => {
         if (announcement) {
@@ -32,7 +32,6 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
             setPriority(announcement.priority);
             setIsPinned(announcement.isPinned);
             setDeadline(announcement.deadline || '');
-            setVisibleRoles(announcement.visibleRoles);
         } else {
             setTitle('');
             setContent('');
@@ -40,7 +39,6 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
             setPriority(AnnouncementPriority.NORMAL);
             setIsPinned(false);
             setDeadline('');
-            setVisibleRoles([UserRole.ADMIN, UserRole.TECH, UserRole.SOPORTE]);
         }
     }, [announcement, isOpen]);
 
@@ -55,21 +53,11 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
             priority,
             isPinned,
             deadline: deadline || undefined,
-            visibleRoles,
+            visibleRoles: allRoles,
             createdBy: currentUser.id,
             createdByName: `${currentUser.name} ${currentUser.lastName}`,
         });
     };
-
-    const toggleRole = (role: string) => {
-        setVisibleRoles(prev =>
-            prev.includes(role)
-                ? prev.filter(r => r !== role)
-                : [...prev, role]
-        );
-    };
-
-    const roles = Object.values(UserRole);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity">
@@ -138,25 +126,6 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
                             className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none"
                             placeholder="Describe el anuncio detenidamente..."
                         />
-                    </div>
-
-                    <div className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <label className="text-sm font-semibold text-slate-700">Visibilidad (Roles)</label>
-                        <div className="flex flex-wrap gap-2">
-                            {roles.map(role => (
-                                <button
-                                    type="button"
-                                    key={role}
-                                    onClick={() => toggleRole(role)}
-                                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${visibleRoles.includes(role)
-                                        ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200'
-                                        : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400 hover:text-blue-600'
-                                        }`}
-                                >
-                                    {role}
-                                </button>
-                            ))}
-                        </div>
                     </div>
 
                     <div className="flex items-center gap-6 px-1">

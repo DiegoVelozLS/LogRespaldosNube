@@ -32,8 +32,10 @@ export const supabaseDataService = {
     try {
       console.log('getOrCreateUserProfile called with:', authUser.id, authUser.email);
       
+      const emailObj = (authUser.email || '').trim().toLowerCase();
+
       // Validar dominio exclusivo de Listosoft
-      if (authUser.email && !authUser.email.toLowerCase().endsWith('@listosoft.com')) {
+      if (emailObj && !emailObj.endsWith('@listosoft.com')) {
         console.error('Acceso denegado: Dominio no autorizado', authUser.email);
         await supabase.auth.signOut();
         return null;
@@ -67,7 +69,7 @@ export const supabaseDataService = {
 
       const insertData = {
         id: authUser.id,
-        email: authUser.email || '',
+        email: emailObj || '',
         name: firstName,
         last_name: lastName,
         role: 'SOPORTE'
@@ -145,7 +147,14 @@ export const supabaseDataService = {
         .eq('id', user.id)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // PGRST116 means zero rows found: the user is in Auth but not in public.users
+        if (error.code === 'PGRST116') {
+          console.warn('Usuario authenticado no existe en public.users. Intentando crearlo...');
+          return await supabaseDataService.getOrCreateUserProfile(user);
+        }
+        throw error;
+      }
 
       if (profile) {
         return {
@@ -178,6 +187,68 @@ export const supabaseDataService = {
     } catch (error) {
       console.error('Error getting Google token:', error);
       return null;
+    }
+  },
+
+  /**
+   * Intenta refrescar la sesión de Supabase para obtener un nuevo token de Google
+   * Útil cuando el token ha expirado
+   */
+  refreshGoogleToken: async (): Promise<string | null> => {
+    try {
+      console.log('Intentando refrescar sesión...');
+      const { data: { session }, error } = await supabase.auth.refreshSession();
+      
+      if (error) {
+        console.error('Error al refrescar sesión:', error);
+        return null;
+      }
+
+      if (session?.provider_token) {
+        // Guardar el nuevo token en localStorage
+        localStorage.setItem('google_provider_token', session.provider_token);
+        console.log('Token de Google refrescado exitosamente');
+        return session.provider_token;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error refreshing Google token:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Retorna URL para que el usuario reconecte su Google Drive
+   * Útil cuando el token expira o no está disponible
+   */
+  getGoogleReconnectUrl: (): string => {
+    const redirectTo = window.location.origin + window.location.pathname;
+    return `${window.location.origin}?action=reconnect-google&redirect=${encodeURIComponent(redirectTo)}`;
+  },
+
+  /**
+   * Fuerza re-autenticación con Google sin desconectar la sesión actual
+   */
+  reauthenticateGoogle: async (): Promise<void> => {
+    try {
+      console.log('Iniciando re-autenticación con Google...');
+      const redirectTo = window.location.origin + window.location.pathname;
+      
+      await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectTo,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent', // Fuerza a que Google muestre el diálogo de consentimiento
+          },
+          scopes: 'https://www.googleapis.com/auth/drive.readonly'
+        }
+      });
+    } catch (error) {
+      console.error('Error during Google re-authentication:', error);
+      throw error;
     }
   },
 
