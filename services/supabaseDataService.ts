@@ -17,8 +17,14 @@ export const supabaseDataService = {
     if (combined.toLowerCase().includes('not authorized for sql vault')) {
       return 'Tu usuario no tiene permisos para registrar credenciales en la boveda SQL.';
     }
+    if (combined.toLowerCase().includes('only admin can delete sql credentials')) {
+      return 'Solo ADMIN puede eliminar credenciales SQL.';
+    }
     if (combined.toLowerCase().includes('function public.upsert_client_sql_credential') || combined.toLowerCase().includes('could not find the function')) {
       return 'La migracion SQL de la boveda no esta aplicada o esta desactualizada.';
+    }
+    if (combined.toLowerCase().includes('function public.delete_client_sql_credential') || combined.toLowerCase().includes('could not find the function')) {
+      return 'La funcion de borrado de la boveda no esta aplicada o esta desactualizada en Supabase.';
     }
 
     return combined || 'Error desconocido al ejecutar la operacion.';
@@ -1151,17 +1157,21 @@ export const supabaseDataService = {
     }
   },
 
-  deleteClientSqlCredential: async (credentialId: string): Promise<boolean> => {
+  deleteClientSqlCredential: async (credentialId: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const { error } = await supabase.rpc('delete_client_sql_credential', {
         p_credential_id: credentialId,
       } as any);
 
       if (error) throw error;
-      return true;
+      return { success: true };
     } catch (error) {
-      console.error('Delete SQL credential error:', error);
-      return false;
+      const parsed = supabaseDataService.parseSupabaseError(error);
+      console.error('Delete SQL credential error:', {
+        raw: error,
+        parsed,
+      });
+      return { success: false, error: parsed };
     }
   }
 };

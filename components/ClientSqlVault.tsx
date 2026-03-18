@@ -121,9 +121,9 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
     }
 
     if (!confirm(`Eliminar credencial SQL de ${row.companyName}?`)) return;
-    const success = await supabaseDataService.deleteClientSqlCredential(row.id);
-    if (!success) {
-      alert('No se pudo eliminar la credencial.');
+      const result = await supabaseDataService.deleteClientSqlCredential(row.id);
+      if (!result.success) {
+        alert(result.error || 'No se pudo eliminar la credencial.');
       return;
     }
     setSelected(null);
@@ -190,7 +190,7 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar empresa, base, usuario SQL..."
+            placeholder="Buscar empresa, instancia, usuario SQL..."
             className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-400 outline-none text-sm"
           />
         </div>
@@ -201,7 +201,7 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {['Empresa', 'Base', 'Usuario SQL', 'Actualizado'].map(h => (
+                {['Empresa', 'Instancia', 'Usuario SQL', 'Actualizado'].map(h => (
                   <th key={h} className="px-5 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -268,7 +268,7 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-semibold text-slate-700">Base de datos</label>
+                  <label className="text-sm font-semibold text-slate-700">Instancia</label>
                   <input
                     required
                     value={formData.databaseName}
@@ -319,7 +319,7 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
                   <p className="font-semibold text-slate-800">{selected.sqlUsername}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Base</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Instancia</p>
                   <p className="font-semibold text-slate-800">{selected.dbName}</p>
                 </div>
               </div>
