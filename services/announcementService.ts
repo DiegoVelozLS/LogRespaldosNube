@@ -1,6 +1,6 @@
 
 import { supabase } from './supabaseClient';
-import { Announcement, AnnouncementCategory, AnnouncementPriority } from '../types';
+import { Announcement, AnnouncementCategory, AnnouncementPriority, Employee } from '../types';
 
 export const announcementService = {
     getAnnouncements: async (): Promise<Announcement[]> => {
@@ -114,6 +114,65 @@ export const announcementService = {
         } catch (error) {
             console.error('Error deleting announcement:', error);
             return false;
+        }
+    },
+
+    /**
+     * Verifica si hay empleados que cumplen años hoy y crea un anuncio
+     * de felicitación si aún no existe. El anuncio expira al final del día.
+     */
+    ensureBirthdayAnnouncements: async (employees: Employee[]): Promise<void> => {
+        try {
+            const today = new Date();
+            const todayMonth = today.getMonth() + 1;
+            const todayDay = today.getDate();
+
+            const birthdayEmployees = employees.filter(emp => {
+                if (!emp.birthday) return false;
+                const bday = new Date(emp.birthday);
+                // Comparar solo mes y día (ignora el año)
+                return (bday.getMonth() + 1) === todayMonth && bday.getDate() === todayDay;
+            });
+
+            if (birthdayEmployees.length === 0) return;
+
+            // Verificar si ya se creó un anuncio de cumpleaños hoy
+            const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+            const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
+
+            const { data: existing } = await supabase
+                .from('announcements')
+                .select('title')
+                .gte('created_at', todayStart)
+                .lt('created_at', todayEnd)
+                .like('title', '%🎂%');
+
+            const existingTitles = (existing || []).map((a: any) => a.title as string);
+
+            // Fin del día actual como deadline
+            const deadline = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59).toISOString();
+
+            for (const emp of birthdayEmployees) {
+                const fullName = `${emp.name} ${emp.lastName}`;
+                const title = `🎂 ¡Feliz Cumpleaños, ${fullName}!`;
+
+                if (existingTitles.includes(title)) continue;
+
+                await supabase.from('announcements').insert({
+                    title,
+                    content: `¡Hoy es el cumpleaños de ${fullName}! 🎉 Todo el equipo de Listosoft le desea un maravilloso día lleno de alegría y celebración. ¡Muchas felicidades! 🎈🎊`,
+                    category: AnnouncementCategory.RRHH,
+                    priority: AnnouncementPriority.NORMAL,
+                    visible_roles: ['ADMIN', 'TECH', 'SOPORTE'],
+                    created_by: 'system',
+                    created_by_name: 'Sistema',
+                    is_pinned: false,
+                    expires_at: null,
+                    deadline,
+                } as any);
+            }
+        } catch (error) {
+            console.error('Error creating birthday announcements:', error);
         }
     }
 };

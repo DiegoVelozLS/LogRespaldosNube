@@ -1,9 +1,29 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
-import { BackupSchedule, BackupLog, User, BackupStatus, UserRole, BackupType, FrequencyType, ClientEntry, Server, Employee, ClientContact } from '../types';
+import { BackupSchedule, BackupLog, User, BackupStatus, UserRole, BackupType, FrequencyType, ClientEntry, Server, Employee, ClientContact, ClientSqlCredential, ClientSqlCredentialInput } from '../types';
 
 export const supabaseDataService = {
+  parseSupabaseError: (error: any): string => {
+    const message = error?.message || '';
+    const details = error?.details || '';
+    const hint = error?.hint || '';
+    const code = error?.code || '';
+    const combined = [message, details, hint, code].filter(Boolean).join(' | ');
+
+    if (combined.toLowerCase().includes('sql vault key is not configured')) {
+      return 'Falta configurar la llave de cifrado en la tabla sql_vault_config de Supabase.';
+    }
+    if (combined.toLowerCase().includes('not authorized for sql vault')) {
+      return 'Tu usuario no tiene permisos para registrar credenciales en la boveda SQL.';
+    }
+    if (combined.toLowerCase().includes('function public.upsert_client_sql_credential') || combined.toLowerCase().includes('could not find the function')) {
+      return 'La migracion SQL de la boveda no esta aplicada o esta desactualizada.';
+    }
+
+    return combined || 'Error desconocido al ejecutar la operacion.';
+  },
+
   // ==================== AUTHENTICATION ====================
 
   loginWithGoogle: async (): Promise<void> => {
@@ -1063,6 +1083,84 @@ export const supabaseDataService = {
       return true;
     } catch (error) {
       console.error('Delete client contact error:', error);
+      return false;
+    }
+  },
+
+  // ==================== CLIENT SQL CREDENTIALS (SECURE VAULT) ====================
+
+  getClientSqlCredentials: async (): Promise<ClientSqlCredential[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('client_sql_credentials_view')
+        .select('*')
+        .order('company_name', { ascending: true });
+
+      if (error) throw error;
+      if (!data) return [];
+
+      return data.map((r: any) => ({
+        id: r.id,
+        companyName: r.company_name,
+        dbName: r.db_name,
+        sqlUsername: r.sql_username,
+        notes: r.notes || undefined,
+        updatedAt: r.updated_at,
+        lastAccessedAt: r.last_accessed_at || undefined,
+        lastPasswordRotationAt: r.last_password_rotation_at || undefined,
+      }));
+    } catch (error) {
+      console.error('Get SQL credentials error:', error);
+      return [];
+    }
+  },
+
+  upsertClientSqlCredential: async (payload: ClientSqlCredentialInput): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const { error } = await supabase.rpc('upsert_client_sql_credential', {
+        p_company_name: payload.companyName,
+        p_sql_username: payload.sqlUsername,
+        p_database_name: payload.databaseName,
+        p_plain_password: payload.sqlPassword || null,
+        p_notes: payload.notes || null,
+      } as any);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      const parsed = supabaseDataService.parseSupabaseError(error);
+      console.error('Upsert SQL credential error:', {
+        raw: error,
+        parsed,
+      });
+      return { success: false, error: parsed };
+    }
+  },
+
+  revealClientSqlPassword: async (credentialId: string): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase.rpc('reveal_client_sql_password', {
+        p_credential_id: credentialId,
+      } as any);
+
+      if (error) throw error;
+      return (data as string) || null;
+    } catch (error) {
+      console.error('Reveal SQL password error:', error);
+      return null;
+    }
+  },
+
+  deleteClientSqlCredential: async (credentialId: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase.rpc('delete_client_sql_credential', {
+        p_credential_id: credentialId,
+      } as any);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Delete SQL credential error:', error);
       return false;
     }
   }

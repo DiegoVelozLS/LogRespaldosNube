@@ -146,6 +146,25 @@ export interface ClientContact {
   notes?: string;
 }
 
+export interface ClientSqlCredential {
+  id: string;
+  companyName: string;
+  dbName: string;
+  sqlUsername: string;
+  notes?: string;
+  updatedAt: string;
+  lastAccessedAt?: string;
+  lastPasswordRotationAt?: string;
+}
+
+export interface ClientSqlCredentialInput {
+  companyName: string;
+  sqlUsername: string;
+  sqlPassword?: string;
+  databaseName: string;
+  notes?: string;
+}
+
 export interface BackupLog {
   id: string;
   scheduleId: string;

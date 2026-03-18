@@ -96,14 +96,19 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
         const googleToken = await supabaseDataService.getGoogleToken();
         
         // Ejecutamos las peticiones. Si Drive falla, retornamos 0 para no romper el resto de la página.
-        const [announcementsData, employeesData, totalDocs] = await Promise.all([
-          announcementService.getAnnouncements(),
+        const [employeesData, totalDocs] = await Promise.all([
           supabaseDataService.getEmployees(),
           googleDriveService.getTotalDocumentCount(googleToken || undefined).catch(err => {
             console.error('Counter error:', err);
             return 0;
           })
         ]);
+
+        // Crear anuncios de cumpleaños si corresponde hoy
+        await announcementService.ensureBirthdayAnnouncements(employeesData);
+
+        // Cargar anuncios después (incluye el de cumpleaños recién creado)
+        const announcementsData = await announcementService.getAnnouncements();
         
         setAnnouncements(announcementsData);
         setEmployees(employeesData);
