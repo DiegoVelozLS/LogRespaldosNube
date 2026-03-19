@@ -26,6 +26,12 @@ export const supabaseDataService = {
     if (combined.toLowerCase().includes('function public.delete_client_sql_credential') || combined.toLowerCase().includes('could not find the function')) {
       return 'La funcion de borrado de la boveda no esta aplicada o esta desactualizada en Supabase.';
     }
+    if (combined.toLowerCase().includes('permission denied for function delete_client_sql_credential')) {
+      return 'Tu usuario no tiene permiso para ejecutar la funcion de borrado. Reaplica el script SQL de la boveda.';
+    }
+    if (combined.toLowerCase().includes('credential not found')) {
+      return 'La credencial ya no existe (posiblemente fue eliminada previamente).';
+    }
 
     return combined || 'Error desconocido al ejecutar la operacion.';
   },

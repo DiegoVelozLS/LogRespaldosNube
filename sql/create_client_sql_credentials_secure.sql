@@ -88,6 +88,34 @@ create trigger trg_client_sql_credentials_updated_at
 before update on public.client_sql_credentials
 for each row execute function public.set_updated_at();
 
+create or replace function public.resolve_sql_vault_role(p_user_id uuid default auth.uid())
+returns text
+language plpgsql
+security definer
+set search_path = public
+stable
+as $$
+declare
+    v_role text;
+begin
+    select upper(trim(u.role))
+    into v_role
+    from public.users u
+    where u.id = p_user_id
+    limit 1;
+
+    if v_role is null or length(v_role) = 0 then
+        v_role := upper(trim(coalesce(auth.jwt() -> 'app_metadata' ->> 'role', auth.jwt() -> 'user_metadata' ->> 'role', '')));
+    end if;
+
+    if v_role is null or length(v_role) = 0 then
+        return null;
+    end if;
+
+    return v_role;
+end;
+$$;
+
 create or replace function public.is_sql_vault_authorized(p_user_id uuid default auth.uid())
 returns boolean
 language sql
@@ -95,12 +123,7 @@ security definer
 set search_path = public
 stable
 as $$
-    select exists (
-        select 1
-        from public.users u
-        where u.id = p_user_id
-          and u.role in ('ADMIN', 'TECH', 'SOPORTE')
-    );
+    select coalesce(public.resolve_sql_vault_role(p_user_id), '') in ('ADMIN', 'TECH', 'SOPORTE');
 $$;
 
 create or replace function public.is_sql_vault_admin(p_user_id uuid default auth.uid())
@@ -110,12 +133,7 @@ security definer
 set search_path = public
 stable
 as $$
-    select exists (
-        select 1
-        from public.users u
-        where u.id = p_user_id
-          and u.role = 'ADMIN'
-    );
+    select coalesce(public.resolve_sql_vault_role(p_user_id), '') = 'ADMIN';
 $$;
 
 create or replace function public.require_sql_vault_key()
@@ -342,15 +360,16 @@ begin
         return false;
     end if;
 
-    delete from public.client_sql_credentials
-    where id = p_credential_id;
-
+    -- Log before delete to satisfy FK constraint on credential_id.
     perform public.log_sql_vault_action(
         p_credential_id,
         v_company_name,
         'DELETE_CREDENTIAL',
         '{}'::jsonb
     );
+
+    delete from public.client_sql_credentials
+    where id = p_credential_id;
 
     return true;
 end;
@@ -405,6 +424,7 @@ revoke all on public.sql_vault_config from anon;
 revoke all on public.sql_vault_config from authenticated;
 
 grant select on public.client_sql_credentials_view to authenticated;
+grant execute on function public.resolve_sql_vault_role(uuid) to authenticated;
 grant execute on function public.is_sql_vault_authorized(uuid) to authenticated;
 grant execute on function public.is_sql_vault_admin(uuid) to authenticated;
 grant execute on function public.upsert_client_sql_credential(text, text, text, text, text) to authenticated;
