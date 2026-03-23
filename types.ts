@@ -158,6 +158,7 @@ export interface ClientSqlCredential {
 }
 
 export interface ClientSqlCredentialInput {
+  id?: string;
   companyName: string;
   sqlUsername: string;
   sqlPassword?: string;

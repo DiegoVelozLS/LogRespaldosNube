@@ -884,20 +884,25 @@ export const supabaseDataService = {
     }
   },
 
-  updateEmployee: async (id: string, updates: Partial<Omit<Employee, 'id'>>): Promise<boolean> => {
+  updateEmployee: async (id: string, updates: Partial<Omit<Employee, 'id'>>): Promise<{ success: boolean; error?: string }> => {
     try {
       const dbUpdates: Record<string, any> = {};
-      if (updates.name) dbUpdates.name = updates.name;
-      if (updates.lastName) dbUpdates.last_name = updates.lastName;
-      if (updates.email) dbUpdates.email = updates.email;
-      if (updates.department) dbUpdates.department = updates.department;
-      if (updates.position) dbUpdates.position = updates.position;
+      
+      // Mapping fields manually with transformation logic
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.lastName !== undefined) dbUpdates.last_name = updates.lastName;
+      if (updates.email !== undefined) dbUpdates.email = updates.email;
+      if (updates.department !== undefined) dbUpdates.department = updates.department;
+      if (updates.position !== undefined) dbUpdates.position = updates.position;
       if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
       if (updates.extension !== undefined) dbUpdates.extension = updates.extension;
-      if (updates.birthday !== undefined) dbUpdates.birthday = updates.birthday;
-      if (updates.hireDate !== undefined) dbUpdates.hire_date = updates.hireDate;
-      if (updates.photoUrl !== undefined) dbUpdates.photo_url = updates.photoUrl;
-      if (updates.role) dbUpdates.role = updates.role;
+      
+      // Transform empty strings to null for date columns to avoid Postgres syntax errors
+      if (updates.birthday !== undefined) dbUpdates.birthday = updates.birthday || null;
+      if (updates.hireDate !== undefined) dbUpdates.hire_date = updates.hireDate || null;
+      
+      if (updates.photoUrl !== undefined) dbUpdates.photo_url = updates.photoUrl || null;
+      if (updates.role !== undefined) dbUpdates.role = updates.role;
 
       const { error } = await supabase
         .from('employees')
@@ -905,10 +910,10 @@ export const supabaseDataService = {
         .eq('id', id);
 
       if (error) throw error;
-      return true;
+      return { success: true };
     } catch (error) {
       console.error('Update employee error:', error);
-      return false;
+      return { success: false, error: supabaseDataService.parseSupabaseError(error) };
     }
   },
 
@@ -1170,6 +1175,7 @@ export const supabaseDataService = {
         p_database_name: payload.databaseName,
         p_plain_password: payload.sqlPassword || null,
         p_notes: payload.notes || null,
+        p_id: payload.id || null,
       } as any);
 
       if (error) throw error;

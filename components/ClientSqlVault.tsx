@@ -118,7 +118,10 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
       return;
     }
 
-    const result = await supabaseDataService.upsertClientSqlCredential(formData);
+    const result = await supabaseDataService.upsertClientSqlCredential({
+      ...formData,
+      id: editing?.id
+    });
     if (!result.success) {
       alert(`No se pudo guardar la credencial SQL.\n\nDetalle: ${result.error || 'Sin detalle adicional.'}`);
       return;
