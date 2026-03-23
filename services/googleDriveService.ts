@@ -17,11 +17,11 @@ export const googleDriveService = {
     /**
      * Obtiene el contenido de una carpeta de Google Drive usando API Key o Access Token
      */
-    async getFolderContents(folderId: string = ROOT_FOLDER_ID, accessToken?: string): Promise<{ files: GoogleFile[], folders: GoogleFile[] }> {
+    async getFolderContents(folderId: string = ROOT_FOLDER_ID, accessToken?: string): Promise<{ files: GoogleFile[], folders: GoogleFile[], error?: string, status?: number }> {
         // Si no hay API KEY ni Token, no podemos hacer nada
         if (!GOOGLE_API_KEY && !accessToken) {
             console.warn('Google Credentials not found');
-            return { files: [], folders: [] };
+            return { files: [], folders: [], error: 'Google Credentials not found' };
         }
 
         try {
@@ -40,6 +40,8 @@ export const googleDriveService = {
             } else {
                 console.warn('GoogleDriveService: No hay Access Token, operando en modo anónimo');
             }
+
+            console.log('GoogleDriveService: Fetching URL:', url.replace(/key=AIza[^&]*/, 'key=AIza...'));
 
             const response = await fetch(url, { headers });
 
@@ -62,11 +64,11 @@ export const googleDriveService = {
                     console.group('⚠️ ERROR Google Drive API');
                     console.error('Status:', response.status);
                     console.error('Mensaje:', errorMessage);
-                    console.error('Objeto completo:', errorData);
+                    console.error('Objeto completo (ERROR):', errorData);
                     console.groupEnd();
                 }
                 
-                return { files: [], folders: [] };
+                return { files: [], folders: [], error: errorMessage, status: response.status };
             }
 
             const data = await response.json();
@@ -78,7 +80,7 @@ export const googleDriveService = {
             };
         } catch (error) {
             console.error('❌ Fetch error from Google Drive:', error);
-            return { files: [], folders: [] };
+            return { files: [], folders: [], error: (error as any)?.message || 'Fetch error' };
         }
     },
 

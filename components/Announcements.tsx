@@ -57,12 +57,12 @@ const Announcements: React.FC<AnnouncementsProps> = ({ user }) => {
         alert('Error al actualizar el anuncio');
       }
     } else {
-      const newAnn = await announcementService.createAnnouncement(annData as Omit<Announcement, 'id' | 'createdAt'>);
-      if (newAnn) {
+      const result = await announcementService.createAnnouncement(annData as Omit<Announcement, 'id' | 'createdAt'>);
+      if (result.success) {
         setIsModalOpen(false);
         fetchAnnouncements();
       } else {
-        alert('Error al crear el anuncio');
+        alert(`Error al crear el anuncio.\n\nDetalle: ${result.error || 'Error desconocido'}`);
       }
     }
   };

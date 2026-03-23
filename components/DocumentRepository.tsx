@@ -34,6 +34,7 @@ const DocumentRepository: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [noGoogleToken, setNoGoogleToken] = useState(false);
+  const [invalidApiKey, setInvalidApiKey] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
 
   // Reconectar a Google Drive
@@ -56,24 +57,33 @@ const DocumentRepository: React.FC = () => {
         setIsLoading(true);
         setNoGoogleToken(false);
         
-        const token = await supabaseDataService.getGoogleToken();
+        let token = await supabaseDataService.getGoogleToken();
         
         // Si no hay token, intentar refrescar la sesión
         if (!token) {
           console.log('Token no encontrado, intentando refrescar sesión...');
-          const refreshedToken = await supabaseDataService.refreshGoogleToken();
-          if (!refreshedToken) {
-            console.warn('No se pudo obtener token de Google - Google Drive no disponible');
-            setNoGoogleToken(true);
-            setCategories([]);
-            setIsLoading(false);
-            return;
-          }
+          token = await supabaseDataService.refreshGoogleToken();
         }
         
-        const { folders } = await googleDriveService.getFolderContents(undefined, token || undefined);
-        const { categories: mappedCategories } = googleDriveService.mapGoogleItems(folders, [], '', '');
-        setCategories(mappedCategories);
+        const { folders, error, status } = await googleDriveService.getFolderContents(undefined, token || undefined);
+        
+        // Solo marcar como error de token si recibimos 401/403 de Google
+        if (error && (status === 401 || status === 403)) {
+          console.warn('Google Drive requiere autenticación:', error);
+          setNoGoogleToken(true);
+          setInvalidApiKey(false);
+          setCategories([]);
+        } else if (error && status === 400) {
+          console.error('Error de API Key:', error);
+          setInvalidApiKey(true);
+          setNoGoogleToken(false);
+          setCategories([]);
+        } else {
+          const { categories: mappedCategories } = googleDriveService.mapGoogleItems(folders, [], '', '');
+          setCategories(mappedCategories);
+          setNoGoogleToken(false);
+          setInvalidApiKey(false);
+        }
       } catch (error) {
         console.error("Failed to load folders:", error);
         setNoGoogleToken(true);
@@ -92,22 +102,29 @@ const DocumentRepository: React.FC = () => {
           setIsLoading(true);
           setNoGoogleToken(false);
           
-          const token = await supabaseDataService.getGoogleToken();
+          let token = await supabaseDataService.getGoogleToken();
           
           // Si no hay token, intentar refrescar
           if (!token) {
-            const refreshedToken = await supabaseDataService.refreshGoogleToken();
-            if (!refreshedToken) {
-              setNoGoogleToken(true);
-              setDocuments([]);
-              setIsLoading(false);
-              return;
-            }
+            token = await supabaseDataService.refreshGoogleToken();
           }
           
-          const { files } = await googleDriveService.getFolderContents(selectedCategory, token || undefined);
-          const { documents: mappedDocs } = googleDriveService.mapGoogleItems([], files, currentCategoryName, selectedCategory);
-          setDocuments(mappedDocs);
+          const { files, error, status } = await googleDriveService.getFolderContents(selectedCategory, token || undefined);
+          
+          if (error && (status === 401 || status === 403)) {
+            setNoGoogleToken(true);
+            setInvalidApiKey(false);
+            setDocuments([]);
+          } else if (error && status === 400) {
+            setInvalidApiKey(true);
+            setNoGoogleToken(false);
+            setDocuments([]);
+          } else {
+            const { documents: mappedDocs } = googleDriveService.mapGoogleItems([], files, currentCategoryName, selectedCategory);
+            setDocuments(mappedDocs);
+            setNoGoogleToken(false);
+            setInvalidApiKey(false);
+          }
         } catch (error) {
           console.error("Failed to load documents:", error);
           setNoGoogleToken(true);
@@ -179,6 +196,21 @@ const DocumentRepository: React.FC = () => {
             >
               {isReconnecting ? 'Reconectando...' : 'Reconectar Google'}
             </button>
+          </div>
+        )}
+
+        {/* Banner de API Key Inválida */}
+        {invalidApiKey && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded flex items-start gap-4 animate-bounce">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">🔑</span>
+              <div>
+                <h3 className="font-semibold text-red-900">Error de API Key</h3>
+                <p className="text-sm text-red-800 mt-1">
+                  Google dice: "API key not valid". Por favor verifica que la API Key en Vercel/Local sea correcta y que la "Google Drive API" esté activada en Google Cloud Console.
+                </p>
+              </div>
+            </div>
           </div>
         )}
         
@@ -290,6 +322,19 @@ const DocumentRepository: React.FC = () => {
       
       {/* Breadcrumb y Header */}
       <div className="border-b border-slate-200 pb-6">
+        {invalidApiKey && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4 rounded flex items-start gap-4 animate-bounce">
+            <div className="flex items-start gap-3">
+              <span className="text-xl">🔑</span>
+              <div>
+                <h3 className="font-semibold text-red-900 text-sm">Error de API Key</h3>
+                <p className="text-xs text-red-800 mt-1">
+                  Google dice: "API key not valid". Verifica tu configuración en Google Cloud.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Breadcrumb Sutil */}
         <nav className="flex items-center gap-2 text-xs font-medium text-slate-400 uppercase tracking-widest mb-6">
           <button

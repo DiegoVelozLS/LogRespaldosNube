@@ -34,7 +34,7 @@ export const announcementService = {
         }
     },
 
-    createAnnouncement: async (announcement: Omit<Announcement, 'id' | 'createdAt'>): Promise<Announcement | null> => {
+    createAnnouncement: async (announcement: Omit<Announcement, 'id' | 'createdAt'>): Promise<{ success: boolean; data?: Announcement; error?: string }> => {
         try {
             const { data, error } = await supabase
                 .from('announcements')
@@ -54,26 +54,31 @@ export const announcementService = {
                 .single();
 
             if (error) throw error;
-            if (!data) return null;
+            if (!data) return { success: false, error: 'No se recibieron datos de la base de datos' };
 
             const ann = data as any;
             return {
-                id: ann.id,
-                title: ann.title,
-                content: ann.content,
-                category: ann.category as AnnouncementCategory,
-                priority: ann.priority as AnnouncementPriority,
-                visibleRoles: ann.visible_roles,
-                createdBy: ann.created_by,
-                createdByName: ann.created_by_name,
-                createdAt: ann.created_at,
-                isPinned: ann.is_pinned,
-                expiresAt: ann.expires_at || undefined,
-                deadline: ann.deadline || undefined
+                success: true,
+                data: {
+                    id: ann.id,
+                    title: ann.title,
+                    content: ann.content,
+                    category: ann.category as AnnouncementCategory,
+                    priority: ann.priority as AnnouncementPriority,
+                    visibleRoles: ann.visible_roles,
+                    createdBy: ann.created_by,
+                    createdByName: ann.created_by_name,
+                    createdAt: ann.created_at,
+                    isPinned: ann.is_pinned,
+                    expiresAt: ann.expires_at || undefined,
+                    deadline: ann.deadline || undefined
+                }
             };
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error creating announcement:', error);
-            return null;
+            // Simplificado: extrae el mensaje de error de Supabase
+            const detail = error.message || error.details || JSON.stringify(error);
+            return { success: false, error: detail };
         }
     },
 
