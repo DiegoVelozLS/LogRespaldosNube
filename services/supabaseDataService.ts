@@ -771,6 +771,41 @@ export const supabaseDataService = {
     }
   },
 
+  // ==================== VAULT PIN ====================
+  
+  checkHasPin: async (): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.rpc('check_user_has_pin');
+      if (error) throw error;
+      return !!data;
+    } catch (error) {
+      console.error('Error checking vault pin:', error);
+      return false;
+    }
+  },
+
+  setupPin: async (pin: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.rpc('set_user_pin', { p_pin: pin });
+      if (error) throw error;
+      return !!data;
+    } catch (error) {
+      console.error('Error setting vault pin:', error);
+      return false;
+    }
+  },
+
+  validatePin: async (pin: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.rpc('verify_user_pin', { p_pin: pin });
+      if (error) throw error;
+      return !!data;
+    } catch (error) {
+      console.error('Error validating vault pin:', error);
+      return false;
+    }
+  },
+
   // ==================== EMPLOYEES ====================
 
   getEmployees: async (): Promise<Employee[]> => {

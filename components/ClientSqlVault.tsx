@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ClientSqlCredential, ClientSqlCredentialInput, User, UserRole } from '../types';
 import { supabaseDataService } from '../services/supabaseDataService';
+import VaultPinModal from './VaultPinModal';
 
 interface ClientSqlVaultProps {
   user: User;
@@ -37,13 +38,26 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
   const [revealingPassword, setRevealingPassword] = useState(false);
   const [copiedPassword, setCopiedPassword] = useState(false);
 
+  // Nuevo estado para el bloqueo por PIN
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
   useEffect(() => {
-    if (!canAccess) {
+    // Verificar si ya se desbloqueó hoy
+    const lastUnlock = localStorage.getItem(`vault_unlocked_${user.id}`);
+    const today = new Date().toISOString().split('T')[0];
+    
+    if (lastUnlock === today) {
+      setIsUnlocked(true);
+    }
+  }, [user.id]);
+
+  useEffect(() => {
+    if (!canAccess || !isUnlocked) {
       setLoading(false);
       return;
     }
     loadData();
-  }, [canAccess]);
+  }, [canAccess, isUnlocked]);
 
   const loadData = async () => {
     setLoading(true);
@@ -160,6 +174,14 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
       <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
         <h2 className="text-2xl font-bold text-slate-800">Boveda SQL de Clientes</h2>
         <p className="text-slate-500 mt-2">No tienes permisos para acceder a este modulo.</p>
+      </div>
+    );
+  }
+
+  if (!isUnlocked) {
+    return (
+      <div className="relative min-h-[700px] w-full flex items-center justify-center bg-slate-50/50 rounded-3xl border border-slate-100 shadow-inner">
+        <VaultPinModal user={user} onUnlock={() => setIsUnlocked(true)} />
       </div>
     );
   }
