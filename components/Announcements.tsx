@@ -15,14 +15,12 @@ const Announcements: React.FC<AnnouncementsProps> = ({ user }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | undefined>(undefined);
 
-  // ADMIN, TECH y SOPORTE pueden crear/editar. ADMIN y TECH pueden eliminar.
+  // Todos los roles pueden crear y editar. Solo ADMIN puede eliminar.
   const isAdmin = user.role === UserRole.ADMIN;
-  const isSoporte = user.role === UserRole.SOPORTE;
-  const isTech = user.role === UserRole.TECH;
   
-  const canCreate = isAdmin || isSoporte || isTech;
-  const canEdit = isAdmin || isSoporte || isTech;
-  const canDelete = isAdmin || isTech;
+  const canCreate = true;
+  const canEdit = true;
+  const canDelete = isAdmin;
 
   useEffect(() => {
     fetchAnnouncements();
