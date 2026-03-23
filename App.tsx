@@ -25,6 +25,7 @@ const App: React.FC = () => {
   const [pendingAlerts, setPendingAlerts] = useState<number>(0);
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -240,12 +241,40 @@ const App: React.FC = () => {
 
   const handleNavigate = (tab: string) => {
     setActiveTab(tab as TabType);
+    setIsMenuOpen(false);
   };
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-50">
-      <nav className="w-full md:w-64 bg-slate-900 text-white flex flex-col sticky top-0 md:h-screen z-10">
-        <div className="p-6 border-b border-slate-800 flex items-center justify-center">
+      {/* Botón menú móvil */}
+      <div className="md:hidden bg-slate-900 text-white p-4 flex items-center justify-between sticky top-0 z-20">
+        <img src="/assets/Logo-Listosoft.png" alt="Listosoft" className="h-8 w-auto object-contain" />
+        <button 
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          className="p-2 rounded-lg hover:bg-slate-800 transition"
+        >
+          {isMenuOpen ? (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+            </svg>
+          )}
+        </button>
+      </div>
+
+      {/* Overlay para móvil */}
+      {isMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-10 md:hidden"
+          onClick={() => setIsMenuOpen(false)}
+        />
+      )}
+
+      <nav className={`fixed md:sticky top-0 left-0 h-screen w-64 bg-slate-900 text-white flex flex-col z-20 transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+        <div className="p-6 border-b border-slate-800 hidden md:flex items-center justify-center">
           <img src="/assets/Logo-Listosoft.png" alt="Listosoft" className="h-16 w-auto object-contain" />
         </div>
 
@@ -253,28 +282,28 @@ const App: React.FC = () => {
           {/* Sección Intranet */}
           <p className="text-xs text-slate-500 uppercase tracking-wider px-4 mb-2">Intranet</p>
           
-          <button onClick={() => setActiveTab('home')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'home' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+          <button onClick={() => handleNavigate('home')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'home' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
             <span className="font-medium">Inicio</span>
           </button>
 
-          <button onClick={() => setActiveTab('announcements')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'announcements' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+          <button onClick={() => handleNavigate('announcements')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'announcements' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
             </svg>
             <span className="font-medium">Anuncios</span>
           </button>
 
-          <button onClick={() => setActiveTab('documents')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'documents' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+          <button onClick={() => handleNavigate('documents')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'documents' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
             <span className="font-medium">Documentos</span>
           </button>
 
-          <button onClick={() => setActiveTab('employees')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'employees' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+          <button onClick={() => handleNavigate('employees')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'employees' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
@@ -282,7 +311,7 @@ const App: React.FC = () => {
           </button>
 
           {canViewSqlVault && (
-            <button onClick={() => setActiveTab('sql-vault')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'sql-vault' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <button onClick={() => handleNavigate('sql-vault')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'sql-vault' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c1.657 0 3-1.343 3-3S13.657 5 12 5s-3 1.343-3 3 1.343 3 3 3zm0 0v2m-7 6h14a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2z" />
               </svg>
@@ -292,7 +321,7 @@ const App: React.FC = () => {
 
           {/* Clientes - oculto temporalmente */}
           {false && (
-          <button onClick={() => setActiveTab('clients')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'clients' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+          <button onClick={() => handleNavigate('clients')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'clients' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
@@ -307,18 +336,18 @@ const App: React.FC = () => {
                 <p className="text-xs text-slate-500 uppercase tracking-wider px-4">Respaldos</p>
               </div>
 
-              <button onClick={() => setActiveTab('backups')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'backups' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <button onClick={() => handleNavigate('backups')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'backups' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
                 <DashboardIcon />
                 <span className="font-medium">Panel Respaldos</span>
                 {pendingAlerts > 0 && <span className="ml-auto bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">{pendingAlerts}</span>}
               </button>
 
-              <button onClick={() => setActiveTab('register')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'register' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <button onClick={() => handleNavigate('register')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'register' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
                 <ClockIcon />
                 <span className="font-medium">Registrar</span>
               </button>
 
-              <button onClick={() => setActiveTab('reports')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'reports' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <button onClick={() => handleNavigate('reports')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'reports' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
@@ -333,7 +362,7 @@ const App: React.FC = () => {
               <div className="pt-4 pb-2">
                 <p className="text-xs text-slate-500 uppercase tracking-wider px-4">Admin</p>
               </div>
-              <button onClick={() => setActiveTab('admin')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'admin' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <button onClick={() => handleNavigate('admin')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'admin' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
                 <AdminIcon />
                 <span className="font-medium">Administración</span>
               </button>
@@ -343,7 +372,7 @@ const App: React.FC = () => {
 
         <div className="p-4 border-t border-slate-800 mt-auto">
           <button
-            onClick={() => setActiveTab('profile')}
+            onClick={() => handleNavigate('profile')}
             className="w-full flex items-center gap-3 mb-4 px-2 hover:bg-slate-800 rounded-lg transition p-2"
           >
             <div className="text-blue-400"><UserCircleIcon /></div>
