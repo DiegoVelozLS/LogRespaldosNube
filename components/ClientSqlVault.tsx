@@ -148,7 +148,6 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
   };
 
   const handleRevealPassword = async (row: ClientSqlCredential) => {
-    if (!confirm(`¿Revelar contrasena SQL de ${row.companyName}?`)) return;
     setRevealingPassword(true);
     const plain = await supabaseDataService.revealClientSqlPassword(row.id);
     setRevealedPassword(plain);
