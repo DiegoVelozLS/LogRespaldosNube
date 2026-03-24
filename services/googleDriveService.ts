@@ -11,6 +11,10 @@ export interface GoogleFile {
     modifiedTime: string;
     description?: string;
     webViewLink?: string;
+    shortcutDetails?: {
+        targetId: string;
+        targetMimeType: string;
+    };
 }
 
 export const googleDriveService = {
@@ -26,12 +30,12 @@ export const googleDriveService = {
 
         try {
             const query = `'${folderId}' in parents and trashed = false`;
-            const fields = 'files(id, name, mimeType, size, modifiedTime, description, webViewLink)';
+            const fields = 'files(id, name, mimeType, size, modifiedTime, description, webViewLink, shortcutDetails)';
             
             // Si tenemos token, no enviamos la API KEY en la URL
             const url = accessToken 
-                ? `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}`
-                : `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&key=${GOOGLE_API_KEY}`;
+                ? `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&supportsAllDrives=true&includeItemsFromAllDrives=true`
+                : `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&key=${GOOGLE_API_KEY}&supportsAllDrives=true&includeItemsFromAllDrives=true`;
             
             const headers: HeadersInit = {};
             if (accessToken) {
@@ -75,8 +79,27 @@ export const googleDriveService = {
             const allItems: GoogleFile[] = data.files || [];
 
             return {
-                folders: allItems.filter(item => item.mimeType === 'application/vnd.google-apps.folder'),
-                files: allItems.filter(item => item.mimeType !== 'application/vnd.google-apps.folder'),
+                folders: allItems.filter(item => 
+                    item.mimeType === 'application/vnd.google-apps.folder' || 
+                    (item.mimeType === 'application/vnd.google-apps.shortcut' && item.shortcutDetails?.targetMimeType === 'application/vnd.google-apps.folder')
+                ).map(folder => {
+                    // Si es un acceso directo a carpeta, usamos el targetId como su id para navegar correctamente
+                    if (folder.mimeType === 'application/vnd.google-apps.shortcut' && folder.shortcutDetails) {
+                        return { ...folder, id: folder.shortcutDetails.targetId };
+                    }
+                    return folder;
+                }),
+                files: allItems.filter(item => 
+                    item.mimeType !== 'application/vnd.google-apps.folder' && 
+                    !(item.mimeType === 'application/vnd.google-apps.shortcut' && item.shortcutDetails?.targetMimeType === 'application/vnd.google-apps.folder')
+                ).map(file => {
+                    // Si es un acceso directo a archivo, podemos usar el targetId si es necesario, 
+                    // pero mantenemos la info original para el enlace
+                    if (file.mimeType === 'application/vnd.google-apps.shortcut' && file.shortcutDetails) {
+                        return { ...file, id: file.shortcutDetails.targetId };
+                    }
+                    return file;
+                }),
             };
         } catch (error) {
             console.error('❌ Fetch error from Google Drive:', error);

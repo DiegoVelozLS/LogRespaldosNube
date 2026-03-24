@@ -94,7 +94,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
       try {
         // Obtenemos el token de Google para acceso seguro
         const googleToken = await supabaseDataService.getGoogleToken();
-        
+
         // Ejecutamos las peticiones. Si Drive falla, retornamos 0 para no romper el resto de la página.
         const [employeesData, totalDocs] = await Promise.all([
           supabaseDataService.getEmployees(),
@@ -109,7 +109,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
 
         // Cargar anuncios después (incluye el de cumpleaños recién creado)
         const announcementsData = await announcementService.getAnnouncements();
-        
+
         setAnnouncements(announcementsData);
         setEmployees(employeesData);
         setDocCount(totalDocs || 0);

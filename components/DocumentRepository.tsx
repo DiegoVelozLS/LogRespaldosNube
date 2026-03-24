@@ -28,6 +28,7 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; icon: string
 
 const DocumentRepository: React.FC = () => {
   const [categories, setCategories] = useState<DocumentCategory[]>([]);
+  const [subcategories, setSubcategories] = useState<DocumentCategory[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [currentCategoryName, setCurrentCategoryName] = useState<string>('');
@@ -109,7 +110,7 @@ const DocumentRepository: React.FC = () => {
             token = await supabaseDataService.refreshGoogleToken();
           }
           
-          const { files, error, status } = await googleDriveService.getFolderContents(selectedCategory, token || undefined);
+          const { files, folders: subfolders, error, status } = await googleDriveService.getFolderContents(selectedCategory, token || undefined);
           
           if (error && (status === 401 || status === 403)) {
             setNoGoogleToken(true);
@@ -120,8 +121,9 @@ const DocumentRepository: React.FC = () => {
             setNoGoogleToken(false);
             setDocuments([]);
           } else {
-            const { documents: mappedDocs } = googleDriveService.mapGoogleItems([], files, currentCategoryName, selectedCategory);
+            const { documents: mappedDocs, categories: mappedSubcategories } = googleDriveService.mapGoogleItems(subfolders, files, currentCategoryName, selectedCategory);
             setDocuments(mappedDocs);
+            setSubcategories(mappedSubcategories);
             setNoGoogleToken(false);
             setInvalidApiKey(false);
           }
@@ -393,51 +395,82 @@ const DocumentRepository: React.FC = () => {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900 mb-4"></div>
           <p className="text-slate-400 text-sm font-light uppercase tracking-widest">Sincronizando con Drive...</p>
         </div>
-      ) : filteredDocuments.length === 0 ? (
-        <div className="bg-slate-50 rounded-2xl p-12 text-center border border-dashed border-slate-300">
-          <div className="text-slate-300 mb-4 flex justify-center">
-            <FileIcon />
-          </div>
-          <h3 className="text-slate-900 font-medium mb-1">Sin resultados</h3>
-          <p className="text-slate-500 text-sm font-light">
-            No se encontraron documentos en esta categoría para el filtro aplicado.
-          </p>
-        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredDocuments.map((doc) => (
-            <a
-              key={doc.id}
-              href={doc.fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group bg-white rounded-xl border border-slate-200 p-4 hover:border-blue-300 hover:shadow-md transition-all duration-300 flex flex-col justify-between text-left"
-            >
-              <div className="flex gap-4 items-start">
-                <div className="p-3 bg-slate-50 rounded-lg text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors shrink-0">
-                  <span className="text-xl">{getFileIcon(doc.fileType)}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-slate-900 truncate group-hover:text-blue-600 transition-colors">
-                    {doc.name}
-                  </h3>
-                  <p className="text-xs text-slate-500 line-clamp-2 mt-1 font-light leading-relaxed">
-                    {doc.description}
-                  </p>
-                </div>
-              </div>
+        <div className="space-y-8">
+          {/* Subcarpetas si existen */}
+          {subcategories.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {subcategories.map((category) => (
+                <button
+                  key={category.id}
+                  onClick={() => {
+                    setSelectedCategory(category.id);
+                    setCurrentCategoryName(category.name);
+                    setSearchTerm(''); // Limpiar búsqueda al entrar a subcarpeta
+                  }}
+                  className="group flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-sm transition-all text-left"
+                >
+                  <div className="p-2 bg-slate-50 rounded-lg text-slate-400 group-hover:text-blue-600 transition-colors">
+                    <FolderIcon />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                      {category.name}
+                    </h3>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
 
-              <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded border uppercase tracking-widest ${getFileTypeColor(doc.fileType)}`}>
-                    {doc.fileType}
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-medium uppercase">{doc.fileSize}</span>
-                </div>
-                <span className="text-[10px] text-slate-400">{formatDate(doc.createdAt)}</span>
+          {/* Grid de documentos */}
+          {filteredDocuments.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredDocuments.map((doc) => (
+                <a
+                  key={doc.id}
+                  href={doc.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group bg-white rounded-xl border border-slate-200 p-4 hover:border-blue-300 hover:shadow-md transition-all duration-300 flex flex-col justify-between text-left"
+                >
+                  <div className="flex gap-4 items-start">
+                    <div className="p-3 bg-slate-50 rounded-lg text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors shrink-0">
+                      <span className="text-xl">{getFileIcon(doc.fileType)}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-slate-900 truncate group-hover:text-blue-600 transition-colors">
+                        {doc.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 line-clamp-2 mt-1 font-light leading-relaxed">
+                        {doc.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded border uppercase tracking-widest ${getFileTypeColor(doc.fileType)}`}>
+                        {doc.fileType}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium uppercase">{doc.fileSize}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">{formatDate(doc.createdAt)}</span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          ) : subcategories.length === 0 && (
+            <div className="bg-slate-50 rounded-2xl p-12 text-center border border-dashed border-slate-300">
+              <div className="text-slate-300 mb-4 flex justify-center">
+                <FileIcon />
               </div>
-            </a>
-          ))}
+              <h3 className="text-slate-900 font-medium mb-1">Sin resultados</h3>
+              <p className="text-slate-500 text-sm font-light">
+                No se encontraron documentos en esta categoría para el filtro aplicado.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
