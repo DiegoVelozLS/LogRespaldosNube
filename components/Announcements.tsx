@@ -22,6 +22,13 @@ const Announcements: React.FC<AnnouncementsProps> = ({ user }) => {
   const canEdit = true;
   const canDelete = isAdmin;
 
+  const getPlainTextContent = (value: string) => {
+    if (!value) return '';
+
+    const parser = new DOMParser();
+    return parser.parseFromString(value, 'text/html').body.textContent || value;
+  };
+
   useEffect(() => {
     fetchAnnouncements();
   }, []);
@@ -38,7 +45,7 @@ const Announcements: React.FC<AnnouncementsProps> = ({ user }) => {
     .filter(a => selectedCategory === 'ALL' || a.category === selectedCategory)
     .filter(a =>
       a.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.content.toLowerCase().includes(searchTerm.toLowerCase())
+      getPlainTextContent(a.content).toLowerCase().includes(searchTerm.toLowerCase())
     )
     .sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
@@ -270,10 +277,9 @@ const Announcements: React.FC<AnnouncementsProps> = ({ user }) => {
                 <h2 className="text-xl font-bold text-slate-800 mb-3">
                   {announcement.title}
                 </h2>
-                <div 
-                  className="prose prose-slate max-w-none text-slate-600 leading-relaxed prose-headings:text-slate-800 prose-headings:font-semibold prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-blockquote:border-l-blue-500 prose-blockquote:bg-blue-50 prose-blockquote:py-1 prose-blockquote:not-italic prose-a:text-blue-600"
-                  dangerouslySetInnerHTML={{ __html: announcement.content }}
-                />
+                <p className="text-slate-600 leading-relaxed whitespace-pre-line">
+                  {getPlainTextContent(announcement.content)}
+                </p>
               </div>
 
               {/* Footer */}
