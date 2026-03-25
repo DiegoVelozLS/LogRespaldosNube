@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Announcement, AnnouncementCategory, AnnouncementPriority, UserRole } from '../types';
+import RichTextEditor from './RichTextEditor';
 
 interface AnnouncementModalProps {
     isOpen: boolean;
@@ -118,13 +119,10 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
                     <div className="space-y-1">
                         <label className="text-sm font-semibold text-slate-700">Contenido</label>
-                        <textarea
-                            required
-                            rows={4}
-                            value={content}
-                            onChange={(e) => setContent(e.target.value)}
-                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none"
-                            placeholder="Describe el anuncio detenidamente..."
+                        <RichTextEditor
+                            content={content}
+                            onChange={setContent}
+                            placeholder="Escribe el contenido del anuncio..."
                         />
                     </div>
 

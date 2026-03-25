@@ -270,9 +270,10 @@ const Announcements: React.FC<AnnouncementsProps> = ({ user }) => {
                 <h2 className="text-xl font-bold text-slate-800 mb-3">
                   {announcement.title}
                 </h2>
-                <p className="text-slate-600 leading-relaxed whitespace-pre-line">
-                  {announcement.content}
-                </p>
+                <div 
+                  className="prose prose-slate max-w-none text-slate-600 leading-relaxed prose-headings:text-slate-800 prose-headings:font-semibold prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-blockquote:border-l-blue-500 prose-blockquote:bg-blue-50 prose-blockquote:py-1 prose-blockquote:not-italic prose-a:text-blue-600"
+                  dangerouslySetInnerHTML={{ __html: announcement.content }}
+                />
               </div>
 
               {/* Footer */}
