@@ -12,6 +12,7 @@ const INITIAL_FORM: ClientSqlCredentialInput = {
   sqlUsername: '',
   sqlPassword: '',
   databaseName: '',
+  ownerCompany: '',
   notes: '',
 };
 
@@ -71,7 +72,8 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
       const matchSearch =
         c.companyName.toLowerCase().includes(search.toLowerCase()) ||
         c.dbName.toLowerCase().includes(search.toLowerCase()) ||
-        c.sqlUsername.toLowerCase().includes(search.toLowerCase());
+        c.sqlUsername.toLowerCase().includes(search.toLowerCase()) ||
+        (c.ownerCompany || '').toLowerCase().includes(search.toLowerCase());
       return matchSearch;
     });
   }, [credentials, search]);
@@ -89,6 +91,7 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
       sqlUsername: row.sqlUsername,
       sqlPassword: '',
       databaseName: row.dbName,
+      ownerCompany: row.ownerCompany || '',
       notes: row.notes || '',
     });
     setShowForm(true);
@@ -214,7 +217,7 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar empresa, instancia, usuario SQL..."
+            placeholder="Buscar empresa, servidor, usuario SQL, empresa dueña..."
             className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-400 outline-none text-sm"
           />
         </div>
@@ -225,7 +228,7 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {['Empresa', 'Instancia', 'Usuario SQL', 'Actualizado'].map(h => (
+                {['Empresa', 'Empresa Dueña', 'Servidor', 'Usuario SQL', 'Actualizado'].map(h => (
                   <th key={h} className="px-5 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -233,15 +236,16 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="text-center py-16 text-slate-400">Cargando credenciales...</td>
+                  <td colSpan={5} className="text-center py-16 text-slate-400">Cargando credenciales...</td>
                 </tr>
               ) : filteredCredentials.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="text-center py-16 text-slate-400">No hay credenciales para mostrar.</td>
+                  <td colSpan={5} className="text-center py-16 text-slate-400">No hay credenciales para mostrar.</td>
                 </tr>
               ) : filteredCredentials.map(row => (
                 <tr key={row.id} onClick={() => setSelected(row)} className="hover:bg-slate-50 transition cursor-pointer">
                   <td className="px-5 py-4 font-semibold text-slate-800">{row.companyName}</td>
+                  <td className="px-5 py-4 text-slate-600">{row.ownerCompany || '-'}</td>
                   <td className="px-5 py-4 font-mono text-xs text-slate-600">{row.dbName}</td>
                   <td className="px-5 py-4 text-slate-700">{row.sqlUsername}</td>
                   <td className="px-5 py-4 text-slate-500 text-xs">{new Date(row.updatedAt).toLocaleDateString('es-ES')}</td>
@@ -271,6 +275,18 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
                   />
                 </div>
                 <div>
+                  <label className="text-sm font-semibold text-slate-700">Empresa Dueña</label>
+                  <input
+                    value={formData.ownerCompany || ''}
+                    onChange={e => setFormData(prev => ({ ...prev, ownerCompany: e.target.value }))}
+                    placeholder="Empresa dueña del sistema"
+                    className="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
                   <label className="text-sm font-semibold text-slate-700">Usuario SQL</label>
                   <input
                     required
@@ -279,9 +295,6 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
                     className="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl"
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-semibold text-slate-700">Contrasena SQL {editing ? '(solo si deseas cambiarla)' : ''}</label>
                   <input
@@ -291,8 +304,11 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
                     className="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-semibold text-slate-700">Instancia</label>
+                  <label className="text-sm font-semibold text-slate-700">Servidor</label>
                   <input
                     required
                     value={formData.databaseName}
@@ -300,16 +316,15 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
                     className="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold text-slate-700">Notas</label>
-                <textarea
-                  rows={3}
-                  value={formData.notes || ''}
-                  onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  className="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl"
-                />
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">Notas</label>
+                  <textarea
+                    rows={1}
+                    value={formData.notes || ''}
+                    onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    className="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl"
+                  />
+                </div>
               </div>
 
               <div className="pt-2 flex gap-3">
@@ -343,8 +358,19 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
                   <p className="font-semibold text-slate-800">{selected.sqlUsername}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Instancia</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Servidor</p>
                   <p className="font-semibold text-slate-800">{selected.dbName}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Empresa Dueña</p>
+                  <p className="font-semibold text-slate-800">{selected.ownerCompany || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Actualizado</p>
+                  <p className="font-semibold text-slate-800">{new Date(selected.updatedAt).toLocaleDateString()}</p>
                 </div>
               </div>
 
@@ -374,6 +400,13 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
                   </button>
                 </div>
               </div>
+
+              {selected.notes && (
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Notas</p>
+                  <p className="text-slate-700 text-sm italic">"{selected.notes}"</p>
+                </div>
+              )}
 
               <p className="text-xs text-slate-500">
                 Ultimo acceso: {selected.lastAccessedAt ? new Date(selected.lastAccessedAt).toLocaleString('es-ES') : 'Sin registros'}

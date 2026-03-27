@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Announcement, AnnouncementCategory, AnnouncementPriority, UserRole } from '../types';
+import { User, Announcement, AnnouncementCategory, AnnouncementPriority, UserRole, AnnouncementNotification } from '../types';
 import { announcementService } from '../services/announcementService';
 import AnnouncementModal from './AnnouncementModal';
 
@@ -53,21 +53,31 @@ const Announcements: React.FC<AnnouncementsProps> = ({ user }) => {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
-  const handleSaveAnnouncement = async (annData: Partial<Announcement>) => {
+  const handleSaveAnnouncement = async (annData: Partial<Announcement>, notification?: AnnouncementNotification) => {
     if (editingAnnouncement) {
       const success = await announcementService.updateAnnouncement(editingAnnouncement.id, annData);
       if (success) {
         setIsModalOpen(false);
         setEditingAnnouncement(undefined);
         fetchAnnouncements();
+        
+        // Si es una edición y se marcó notificar, también enviamos el correo
+        if (notification?.notifyByEmail) {
+           await announcementService.sendAnnouncementNotification(editingAnnouncement.id, notification);
+        }
       } else {
         alert('Error al actualizar el anuncio');
       }
     } else {
       const result = await announcementService.createAnnouncement(annData as Omit<Announcement, 'id' | 'createdAt'>);
-      if (result.success) {
+      if (result.success && result.data) {
         setIsModalOpen(false);
         fetchAnnouncements();
+
+        // Si se creó con éxito y se marcó notificar
+        if (notification?.notifyByEmail) {
+           await announcementService.sendAnnouncementNotification(result.data.id, notification);
+        }
       } else {
         alert(`Error al crear el anuncio.\n\nDetalle: ${result.error || 'Error desconocido'}`);
       }

@@ -1,6 +1,6 @@
 
 import { supabase } from './supabaseClient';
-import { Announcement, AnnouncementCategory, AnnouncementPriority, Employee } from '../types';
+import { Announcement, AnnouncementCategory, AnnouncementPriority, Employee, AnnouncementNotification } from '../types';
 
 export const announcementService = {
     getAnnouncements: async (): Promise<Announcement[]> => {
@@ -178,6 +178,27 @@ export const announcementService = {
             }
         } catch (error) {
             console.error('Error creating birthday announcements:', error);
+        }
+    },
+
+    /**
+     * Envía notificaciones por correo electrónico invocando una Edge Function de Supabase.
+     */
+    sendAnnouncementNotification: async (announcementId: string, notification: AnnouncementNotification): Promise<boolean> => {
+        try {
+            const { data, error } = await supabase.functions.invoke('send-announcement-email', {
+                body: {
+                    announcementId,
+                    recipientType: notification.recipientType,
+                    selectedUserIds: notification.selectedUserIds
+                }
+            });
+
+            if (error) throw error;
+            return true;
+        } catch (error) {
+            console.error('Error invoking send-announcement-email function:', error);
+            return false;
         }
     }
 };

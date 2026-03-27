@@ -1156,6 +1156,7 @@ export const supabaseDataService = {
         companyName: r.company_name,
         dbName: r.db_name,
         sqlUsername: r.sql_username,
+        ownerCompany: r.owner_company || undefined,
         notes: r.notes || undefined,
         updatedAt: r.updated_at,
         lastAccessedAt: r.last_accessed_at || undefined,
@@ -1176,6 +1177,7 @@ export const supabaseDataService = {
         p_plain_password: payload.sqlPassword || null,
         p_notes: payload.notes || null,
         p_id: payload.id || null,
+        p_owner_company: payload.ownerCompany || null,
       } as any);
 
       if (error) throw error;

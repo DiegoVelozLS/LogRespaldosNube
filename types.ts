@@ -151,6 +151,7 @@ export interface ClientSqlCredential {
   companyName: string;
   dbName: string;
   sqlUsername: string;
+  ownerCompany?: string;
   notes?: string;
   updatedAt: string;
   lastAccessedAt?: string;
@@ -163,6 +164,7 @@ export interface ClientSqlCredentialInput {
   sqlUsername: string;
   sqlPassword?: string;
   databaseName: string;
+  ownerCompany?: string;
   notes?: string;
 }
 
@@ -176,4 +178,10 @@ export interface BackupLog {
   notes: string;
   dateStr: string;
   scheduleName?: string;
+}
+
+export interface AnnouncementNotification {
+  notifyByEmail: boolean;
+  recipientType: 'ALL' | 'SPECIFIC';
+  selectedUserIds: string[];
 }
