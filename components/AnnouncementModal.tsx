@@ -23,7 +23,7 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
     const [priority, setPriority] = useState<AnnouncementPriority>(AnnouncementPriority.NORMAL);
     const [isPinned, setIsPinned] = useState(false);
     const [deadline, setDeadline] = useState('');
-    
+
     // Estados para notificación por correo
     const [notifyByEmail, setNotifyByEmail] = useState(false);
     const [recipientType, setRecipientType] = useState<'ALL' | 'SPECIFIC'>('ALL');
@@ -78,7 +78,7 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         const notification: AnnouncementNotification | undefined = notifyByEmail ? {
             notifyByEmail,
             recipientType,
@@ -99,14 +99,14 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
     };
 
     const toggleUserSelection = (userId: string) => {
-        setSelectedUserIds(prev => 
-            prev.includes(userId) 
-                ? prev.filter(id => id !== userId) 
+        setSelectedUserIds(prev =>
+            prev.includes(userId)
+                ? prev.filter(id => id !== userId)
                 : [...prev, userId]
         );
     };
 
-    const filteredUsers = availableUsers.filter(u => 
+    const filteredUsers = availableUsers.filter(u =>
         u.id !== currentUser.id && // No enviarse a sí mismo
         (`${u.name} ${u.lastName} ${u.email}`).toLowerCase().includes(userSearchTerm.toLowerCase())
     );
@@ -221,9 +221,9 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
                                     <span>Notificar por correo electrónico</span>
                                 </div>
                                 <label className="relative inline-flex items-center cursor-pointer">
-                                    <input 
-                                        type="checkbox" 
-                                        className="sr-only peer" 
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
                                         checked={notifyByEmail}
                                         onChange={(e) => setNotifyByEmail(e.target.checked)}
                                     />
@@ -235,9 +235,9 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
                                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                     <div className="flex gap-4">
                                         <label className="flex items-center gap-2 cursor-pointer">
-                                            <input 
-                                                type="radio" 
-                                                className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                                            <input
+                                                type="radio"
+                                                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                                                 name="recipientType"
                                                 checked={recipientType === 'ALL'}
                                                 onChange={() => setRecipientType('ALL')}
@@ -245,9 +245,9 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
                                             <span className="text-sm font-medium text-slate-700">A todos los usuarios</span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer">
-                                            <input 
-                                                type="radio" 
-                                                className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                                            <input
+                                                type="radio"
+                                                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                                                 name="recipientType"
                                                 checked={recipientType === 'SPECIFIC'}
                                                 onChange={() => setRecipientType('SPECIFIC')}
@@ -272,15 +272,15 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
                                                     <div className="p-4 text-center text-slate-400 text-sm">No se encontraron usuarios</div>
                                                 ) : (
                                                     filteredUsers.map(user => (
-                                                        <div 
-                                                            key={user.id} 
+                                                        <div
+                                                            key={user.id}
                                                             className="flex items-center gap-3 p-2 hover:bg-slate-50 transition cursor-pointer"
                                                             onClick={() => toggleUserSelection(user.id)}
                                                         >
-                                                            <input 
-                                                                type="checkbox" 
+                                                            <input
+                                                                type="checkbox"
                                                                 checked={selectedUserIds.includes(user.id)}
-                                                                onChange={() => {}} // Manejado por el div parent
+                                                                onChange={() => { }} // Manejado por el div parent
                                                                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                                                             />
                                                             <div className="flex flex-col">

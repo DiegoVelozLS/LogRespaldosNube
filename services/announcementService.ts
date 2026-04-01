@@ -184,21 +184,51 @@ export const announcementService = {
     /**
      * Envía notificaciones por correo electrónico invocando una Edge Function de Supabase.
      */
-    sendAnnouncementNotification: async (announcementId: string, notification: AnnouncementNotification): Promise<boolean> => {
+    sendAnnouncementNotification: async (announcementId: string, notification: AnnouncementNotification): Promise<{ success: boolean; error?: string }> => {
         try {
-            const { data, error } = await supabase.functions.invoke('send-announcement-email', {
-                body: {
+            console.log('Invocando send-announcement-email para anuncio:', announcementId);
+            
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+            
+            // Obtener el token de sesión actual para el header Authorization
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            console.log('Token de sesión presente:', !!token);
+
+            const response = await fetch(`${supabaseUrl}/functions/v1/send-announcement-email`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': anonKey,
+                    'Authorization': `Bearer ${token || anonKey}` // Usar token de usuario o anonKey como fallback
+                },
+                body: JSON.stringify({
                     announcementId,
                     recipientType: notification.recipientType,
                     selectedUserIds: notification.selectedUserIds
-                }
+                })
             });
 
-            if (error) throw error;
-            return true;
-        } catch (error) {
-            console.error('Error invoking send-announcement-email function:', error);
-            return false;
+            const result = await response.json();
+
+            if (!response.ok) {
+                console.error('Error en la respuesta de la función:', result);
+                return { 
+                    success: false, 
+                    error: result.details || result.error || `Error ${response.status}: ${response.statusText}` 
+                };
+            }
+
+            console.log('Respuesta exitosa de la función:', result);
+            return { success: true };
+        } catch (error: any) {
+            console.error('Error catch al invocar send-announcement-email:', error);
+            return { 
+                success: false, 
+                error: error.message || 'Error de red al intentar enviar el correo' 
+            };
         }
     }
 };

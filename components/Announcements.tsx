@@ -17,7 +17,7 @@ const Announcements: React.FC<AnnouncementsProps> = ({ user }) => {
 
   // Todos los roles pueden crear y editar. Solo ADMIN puede eliminar.
   const isAdmin = user.role === UserRole.ADMIN;
-  
+
   const canCreate = true;
   const canEdit = true;
   const canDelete = isAdmin;
@@ -60,10 +60,13 @@ const Announcements: React.FC<AnnouncementsProps> = ({ user }) => {
         setIsModalOpen(false);
         setEditingAnnouncement(undefined);
         fetchAnnouncements();
-        
+
         // Si es una edición y se marcó notificar, también enviamos el correo
         if (notification?.notifyByEmail) {
-           await announcementService.sendAnnouncementNotification(editingAnnouncement.id, notification);
+          const emailResult = await announcementService.sendAnnouncementNotification(editingAnnouncement.id, notification);
+          if (!emailResult.success) {
+            alert(`El anuncio se actualizó, pero hubo un problema con el correo:\n\n${emailResult.error}`);
+          }
         }
       } else {
         alert('Error al actualizar el anuncio');
@@ -76,7 +79,10 @@ const Announcements: React.FC<AnnouncementsProps> = ({ user }) => {
 
         // Si se creó con éxito y se marcó notificar
         if (notification?.notifyByEmail) {
-           await announcementService.sendAnnouncementNotification(result.data.id, notification);
+          const emailResult = await announcementService.sendAnnouncementNotification(result.data.id, notification);
+          if (!emailResult.success) {
+            alert(`Anuncio publicado con éxito, pero la notificación falló:\n\n${emailResult.error}`);
+          }
         }
       } else {
         alert(`Error al crear el anuncio.\n\nDetalle: ${result.error || 'Error desconocido'}`);
