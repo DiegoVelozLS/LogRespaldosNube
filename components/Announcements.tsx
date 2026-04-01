@@ -5,9 +5,11 @@ import AnnouncementModal from './AnnouncementModal';
 
 interface AnnouncementsProps {
   user: User;
+  targetId?: string;
+  onClearTarget?: () => void;
 }
 
-const Announcements: React.FC<AnnouncementsProps> = ({ user }) => {
+const Announcements: React.FC<AnnouncementsProps> = ({ user, targetId, onClearTarget }) => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<AnnouncementCategory | 'ALL'>('ALL');
@@ -32,6 +34,29 @@ const Announcements: React.FC<AnnouncementsProps> = ({ user }) => {
   useEffect(() => {
     fetchAnnouncements();
   }, []);
+
+  // Efecto para scroll y resaltado
+  useEffect(() => {
+    if (targetId && !loading && announcements.length > 0) {
+      // Pequeño delay para asegurar que el DOM esté listo
+      const timer = setTimeout(() => {
+        const element = document.getElementById(`announcement-${targetId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          
+          // Añadir clase de resaltado temporalmente
+          element.classList.add('ring-4', 'ring-blue-400', 'ring-opacity-75', 'scale-[1.02]');
+          
+          // Limpiar el resaltado después de unos segundos
+          setTimeout(() => {
+            element.classList.remove('ring-4', 'ring-blue-400', 'ring-opacity-75', 'scale-[1.02]');
+            if (onClearTarget) onClearTarget();
+          }, 3000);
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [targetId, loading, announcements, onClearTarget]);
 
   const fetchAnnouncements = async () => {
     setLoading(true);
@@ -250,7 +275,8 @@ const Announcements: React.FC<AnnouncementsProps> = ({ user }) => {
           filteredAnnouncements.map((announcement) => (
             <div
               key={announcement.id}
-              className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition ${announcement.isPinned ? 'border-blue-300 ring-1 ring-blue-200' : 'border-slate-200'
+              id={`announcement-${announcement.id}`}
+              className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition duration-500 ${announcement.isPinned ? 'border-blue-300 ring-1 ring-blue-200' : 'border-slate-200'
                 }`}
             >
               {/* Header del anuncio */}

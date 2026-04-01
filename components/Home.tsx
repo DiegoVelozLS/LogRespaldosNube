@@ -6,7 +6,7 @@ import { googleDriveService } from '../services/googleDriveService';
 
 interface HomeProps {
   user: User;
-  onNavigate: (tab: string) => void;
+  onNavigate: (tab: string, announcementId?: string) => void;
 }
 
 // Iconos SVG profesionales
@@ -320,8 +320,9 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
               visibleAnnouncements.slice(0, 4).map((announcement) => (
                 <div
                   key={announcement.id}
-                  className={`bg-white rounded-xl p-5 shadow-sm border-l-4 ${announcement.isPinned ? 'border-l-blue-500 bg-blue-50/30' : 'border-l-slate-300'
-                    } hover:shadow-md transition`}
+                  onClick={() => onNavigate('announcements', announcement.id)}
+                  className={`bg-white rounded-xl p-5 shadow-sm border-l-4 cursor-pointer group ${announcement.isPinned ? 'border-l-blue-500 bg-blue-50/30' : 'border-l-slate-300'
+                    } hover:shadow-md hover:border-l-blue-400 transition`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
@@ -338,7 +339,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
                         </span>
                         {getPriorityIndicator(announcement.priority)}
                       </div>
-                      <h3 className="font-semibold text-slate-800 mb-2">
+                      <h3 className="font-semibold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">
                         {announcement.title}
                       </h3>
                       <p className="text-sm text-slate-600 line-clamp-2">

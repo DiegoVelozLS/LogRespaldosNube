@@ -24,6 +24,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [pendingAlerts, setPendingAlerts] = useState<number>(0);
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined);
+  const [selectedAnnouncementId, setSelectedAnnouncementId] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -239,8 +240,9 @@ const App: React.FC = () => {
   // Solo ADMIN puede ver administración
   const canViewAdmin = isAdmin;
 
-  const handleNavigate = (tab: string) => {
+  const handleNavigate = (tab: string, announcementId?: string) => {
     setActiveTab(tab as TabType);
+    setSelectedAnnouncementId(announcementId);
     setIsMenuOpen(false);
   };
 
@@ -390,7 +392,13 @@ const App: React.FC = () => {
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-7xl mx-auto p-6">
           {activeTab === 'home' && <Home user={user} onNavigate={handleNavigate} />}
-          {activeTab === 'announcements' && <Announcements user={user} />}
+          {activeTab === 'announcements' && (
+            <Announcements 
+              user={user} 
+              targetId={selectedAnnouncementId} 
+              onClearTarget={() => setSelectedAnnouncementId(undefined)} 
+            />
+          )}
           {activeTab === 'documents' && <DocumentRepository />}
           {activeTab === 'employees' && <EmployeeDirectory user={user} />}
           {activeTab === 'backups' && <Dashboard user={user} onRefresh={() => { }} onNavigateToRegister={(scheduleId) => {
