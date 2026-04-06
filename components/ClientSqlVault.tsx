@@ -52,6 +52,12 @@ const ClientSqlVault: React.FC<ClientSqlVaultProps> = ({ user }) => {
     }
   }, [user.id]);
 
+  // Reset password state when selecting a different record or closing
+  useEffect(() => {
+    setRevealedPassword(null);
+    setCopiedPassword(false);
+  }, [selected]);
+
   useEffect(() => {
     if (!canAccess || !isUnlocked) {
       setLoading(false);
