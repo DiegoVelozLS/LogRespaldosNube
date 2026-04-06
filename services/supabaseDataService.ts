@@ -32,8 +32,11 @@ export const supabaseDataService = {
     if (combined.toLowerCase().includes('credential not found')) {
       return 'La credencial ya no existe (posiblemente fue eliminada previamente).';
     }
+    if (combined.toLowerCase().includes('duplicate key value violates unique constraint') || combined.toLowerCase().includes('idx_client_sql_credentials_company_name_uniq')) {
+      return 'Ya existe un registro con este nombre de empresa en la bóveda. Prueba con otro nombre.';
+    }
 
-    return combined || 'Error desconocido al ejecutar la operacion.';
+    return combined || 'Error desconocido al ejecutar la operación.';
   },
 
   // ==================== AUTHENTICATION ====================

@@ -188,40 +188,34 @@ export const announcementService = {
         try {
             console.log('Invocando send-announcement-email para anuncio:', announcementId);
             
-            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-            
-            // Obtener el token de sesión actual para el header Authorization
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
-
-            console.log('Token de sesión presente:', !!token);
-
-            const response = await fetch(`${supabaseUrl}/functions/v1/send-announcement-email`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': anonKey,
-                    'Authorization': `Bearer ${token || anonKey}` // Usar token de usuario o anonKey como fallback
-                },
-                body: JSON.stringify({
+            // Usar el método recomendado por Supabase para invocar funciones
+            // Esto maneja automáticamente las cabeceras Authorization y apikey
+            const { data, error } = await supabase.functions.invoke('send-announcement-email', {
+                body: {
                     announcementId,
                     recipientType: notification.recipientType,
                     selectedUserIds: notification.selectedUserIds
-                })
+                }
             });
 
-            const result = await response.json();
+            if (error) {
+                console.error('Error detallado de la función:', error);
+                
+                let errorDetails = 'Error desconocido en la función.';
+                
+                // Si el error es de Supabase Functions, a menudo el mensaje real 
+                // está en el cuerpo de la respuesta que podemos capturar así
+                if (error instanceof Error) {
+                    errorDetails = error.message;
+                }
 
-            if (!response.ok) {
-                console.error('Error en la respuesta de la función:', result);
                 return { 
                     success: false, 
-                    error: result.details || result.error || `Error ${response.status}: ${response.statusText}` 
+                    error: errorDetails
                 };
             }
 
-            console.log('Respuesta exitosa de la función:', result);
+            console.log('Respuesta exitosa de la función:', data);
             return { success: true };
         } catch (error: any) {
             console.error('Error catch al invocar send-announcement-email:', error);
