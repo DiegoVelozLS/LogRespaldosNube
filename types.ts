@@ -185,3 +185,13 @@ export interface AnnouncementNotification {
   recipientType: 'ALL' | 'SPECIFIC';
   selectedUserIds: string[];
 }
+
+export interface SqlAuditLog {
+  id: string;
+  credentialId: string;
+  companyName: string;
+  actorUserId: string;
+  actorName: string;
+  action: string;
+  createdAt: string;
+}

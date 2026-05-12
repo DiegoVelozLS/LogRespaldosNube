@@ -1,7 +1,6 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
-import { BackupSchedule, BackupLog, User, BackupStatus, UserRole, BackupType, FrequencyType, ClientEntry, Server, Employee, ClientContact, ClientSqlCredential, ClientSqlCredentialInput } from '../types';
+import { BackupSchedule, BackupLog, User, BackupStatus, UserRole, BackupType, FrequencyType, ClientEntry, Server, Employee, ClientContact, ClientSqlCredential, ClientSqlCredentialInput, SqlAuditLog } from '../types';
 
 export const supabaseDataService = {
   parseSupabaseError: (error: any): string => {
@@ -1224,6 +1223,30 @@ export const supabaseDataService = {
         parsed,
       });
       return { success: false, error: parsed };
+    }
+  },
+
+  getSqlAuditLogs: async (): Promise<SqlAuditLog[]> => {
+    try {
+      const { data, error } = await supabase.rpc('get_sql_audit_logs');
+
+      if (error) {
+        console.error('Supabase RPC error get_sql_audit_logs:', error);
+        throw error;
+      }
+
+      return (data || []).map((row: any) => ({
+        id: row.id,
+        credentialId: row.credential_id,
+        companyName: row.company_name,
+        actorUserId: row.actor_user_id,
+        actorName: row.actor_name,
+        action: row.action,
+        createdAt: row.created_at
+      }));
+    } catch (error) {
+      console.error('Error fetching sql audit logs via RPC:', error);
+      return [];
     }
   }
 };

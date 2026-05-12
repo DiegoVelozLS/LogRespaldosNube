@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { BackupSchedule, BackupLog, BackupType, FrequencyType, UserRole, User, Server, ROLE_LABELS } from '../types';
+import { BackupSchedule, BackupLog, BackupType, FrequencyType, UserRole, User, Server, ROLE_LABELS, SqlAuditLog } from '../types';
 import { supabaseDataService } from '../services/supabaseDataService';
 import { BACKUP_TYPE_ICONS, STATUS_COLORS } from '../constants';
 
@@ -277,7 +277,7 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
 
 interface AdminPanelProps {
   user: User;
-  initialTab?: 'schedules' | 'users' | 'servers';
+  initialTab?: 'schedules' | 'users' | 'servers' | 'vault-audit';
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' }) => {
@@ -293,8 +293,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
   const [logs, setLogs] = useState<BackupLog[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [servers, setServers] = useState<Server[]>([]);
+  const [auditLogs, setAuditLogs] = useState<SqlAuditLog[]>([]);
   const [newServerName, setNewServerName] = useState('');
-  const [activeTab, setActiveTab] = useState<'schedules' | 'users' | 'servers'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'schedules' | 'users' | 'servers' | 'vault-audit'>(initialTab);
   const [loading, setLoading] = useState(true);
 
   // Forms states
@@ -312,16 +313,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      const [schedulesData, logsData, usersData, serversData] = await Promise.all([
+      const [schedulesData, logsData, usersData, serversData, auditLogsData] = await Promise.all([
         supabaseDataService.getSchedules(),
         supabaseDataService.getLogs(),
         supabaseDataService.getUsers(),
-        supabaseDataService.getServers()
+        supabaseDataService.getServers(),
+        supabaseDataService.getSqlAuditLogs()
       ]);
       setSchedules(schedulesData);
       setLogs(logsData);
       setUsers(usersData);
       setServers(serversData);
+      setAuditLogs(auditLogsData);
       setLoading(false);
     };
     loadData();
@@ -449,6 +452,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
               { id: 'schedules', label: 'Programación' },
               { id: 'users', label: 'Usuarios' },
               { id: 'servers', label: 'Servidores' },
+              { id: 'vault-audit', label: 'Auditoría Bóveda' },
             ].map((t) => (
               <button
                 key={t.id}
@@ -721,6 +725,109 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
                 </div>
               ))
             )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'vault-audit' && role === UserRole.ADMIN && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fadeIn">
+          <div className="p-6 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+            <div>
+              <h3 className="text-xl font-bold text-slate-800">Auditoría de Bóveda SQL</h3>
+              <p className="text-sm text-slate-500 mt-1">Registro histórico de accesos y modificaciones a las credenciales</p>
+            </div>
+            <div className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-bold rounded-lg border border-blue-200">
+              {auditLogs.length} Registros
+            </div>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-slate-100 border-b border-slate-200">
+                <tr>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha y Hora</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Usuario</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Acción</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Registro (Cliente)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {auditLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">
+                      No hay registros de auditoría disponibles
+                    </td>
+                  </tr>
+                ) : (
+                  auditLogs.map((log) => {
+                    let actionLabel = log.action;
+                    let actionColor = "bg-slate-100 text-slate-700";
+                    
+                    switch (log.action) {
+                      case 'CREATE_CREDENTIAL':
+                        actionLabel = 'Creación';
+                        actionColor = 'bg-green-100 text-green-700 border-green-200';
+                        break;
+                      case 'UPDATE_CREDENTIAL':
+                        actionLabel = 'Edición';
+                        actionColor = 'bg-blue-100 text-blue-700 border-blue-200';
+                        break;
+                      case 'REVEAL_PASSWORD':
+                        actionLabel = 'Visualizó Contraseña';
+                        actionColor = 'bg-amber-100 text-amber-700 border-amber-200';
+                        break;
+                      case 'DELETE_CREDENTIAL':
+                        actionLabel = 'Eliminación';
+                        actionColor = 'bg-red-100 text-red-700 border-red-200';
+                        break;
+                      case 'ROTATE_PASSWORD':
+                        actionLabel = 'Rotó Contraseña';
+                        actionColor = 'bg-purple-100 text-purple-700 border-purple-200';
+                        break;
+                    }
+
+                    return (
+                      <tr key={log.id} className="hover:bg-slate-50 transition">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="text-sm font-medium text-slate-700">
+                              {new Date(log.createdAt).toLocaleString('es-ES', { 
+                                day: '2-digit', month: 'short', year: 'numeric', 
+                                hour: '2-digit', minute: '2-digit' 
+                              })}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600 text-xs uppercase">
+                              {log.actorName[0]}
+                            </div>
+                            <span className="font-bold text-slate-800">{log.actorName}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold border ${actionColor}`}>
+                            {actionLabel}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                            <span className="font-medium text-slate-700">{log.companyName}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
