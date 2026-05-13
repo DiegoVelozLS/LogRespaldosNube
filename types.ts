@@ -146,28 +146,6 @@ export interface ClientContact {
   notes?: string;
 }
 
-export interface ClientSqlCredential {
-  id: string;
-  companyName: string;
-  dbName: string;
-  sqlUsername: string;
-  ownerCompany?: string;
-  notes?: string;
-  updatedAt: string;
-  lastAccessedAt?: string;
-  lastPasswordRotationAt?: string;
-}
-
-export interface ClientSqlCredentialInput {
-  id?: string;
-  companyName: string;
-  sqlUsername: string;
-  sqlPassword?: string;
-  databaseName: string;
-  ownerCompany?: string;
-  notes?: string;
-}
-
 export interface BackupLog {
   id: string;
   scheduleId: string;
@@ -186,10 +164,47 @@ export interface AnnouncementNotification {
   selectedUserIds: string[];
 }
 
-export interface SqlAuditLog {
+export interface VaultFieldSchema {
+  name: string;
+  label: string;
+  required: boolean;
+}
+
+export interface VaultCategory {
+  id: string;
+  name: string;
+  icon: string;
+  fields_schema: VaultFieldSchema[];
+}
+
+export interface VaultCredential {
+  id: string;
+  vaultCategoryId: string;
+  title: string;
+  username: string;
+  metadata: Record<string, any>;
+  notes?: string;
+  updatedAt: string;
+  lastAccessedAt?: string;
+  lastPasswordRotationAt?: string;
+}
+
+export interface VaultCredentialInput {
+  id?: string;
+  vaultCategoryId: string;
+  title: string;
+  username: string;
+  password?: string;
+  metadata: Record<string, any>;
+  notes?: string;
+}
+
+export interface VaultAuditLog {
   id: string;
   credentialId: string;
-  companyName: string;
+  credentialTitle: string;
+  vaultCategoryId: string;
+  vaultCategoryName: string;
   actorUserId: string;
   actorName: string;
   action: string;

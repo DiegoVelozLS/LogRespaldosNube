@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
-import { BackupSchedule, BackupLog, User, BackupStatus, UserRole, BackupType, FrequencyType, ClientEntry, Server, Employee, ClientContact, ClientSqlCredential, ClientSqlCredentialInput, SqlAuditLog } from '../types';
+import { BackupSchedule, BackupLog, User, BackupStatus, UserRole, BackupType, FrequencyType, ClientEntry, Server, Employee, ClientContact, VaultCategory, VaultCredential, VaultCredentialInput, VaultAuditLog } from '../types';
 
 export const supabaseDataService = {
   parseSupabaseError: (error: any): string => {
@@ -1141,52 +1141,62 @@ export const supabaseDataService = {
     }
   },
 
-  // ==================== CLIENT SQL CREDENTIALS (SECURE VAULT) ====================
+  // ==================== MODULAR PASSWORD MANAGER (VAULT) ====================
 
-  getClientSqlCredentials: async (): Promise<ClientSqlCredential[]> => {
+  getAuthorizedVaultCategories: async (): Promise<VaultCategory[]> => {
     try {
-      const { data, error } = await supabase
-        .from('client_sql_credentials_view')
-        .select('*')
-        .order('company_name', { ascending: true });
+      const { data, error } = await supabase.rpc('get_authorized_vault_categories');
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Get vault categories error:', error);
+      return [];
+    }
+  },
+
+  getVaultCredentials: async (vaultCategoryId: string): Promise<VaultCredential[]> => {
+    try {
+      const { data, error } = await supabase.rpc('get_vault_credentials', {
+        p_vault_category_id: vaultCategoryId
+      });
 
       if (error) throw error;
       if (!data) return [];
 
       return data.map((r: any) => ({
         id: r.id,
-        companyName: r.company_name,
-        dbName: r.db_name,
-        sqlUsername: r.sql_username,
-        ownerCompany: r.owner_company || undefined,
+        vaultCategoryId: r.vault_category_id,
+        title: r.title,
+        username: r.username,
+        metadata: r.metadata || {},
         notes: r.notes || undefined,
         updatedAt: r.updated_at,
         lastAccessedAt: r.last_accessed_at || undefined,
         lastPasswordRotationAt: r.last_password_rotation_at || undefined,
       }));
     } catch (error) {
-      console.error('Get SQL credentials error:', error);
+      console.error('Get vault credentials error:', error);
       return [];
     }
   },
 
-  upsertClientSqlCredential: async (payload: ClientSqlCredentialInput): Promise<{ success: boolean; error?: string }> => {
+  upsertVaultCredential: async (payload: VaultCredentialInput): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { error } = await supabase.rpc('upsert_client_sql_credential', {
-        p_company_name: payload.companyName,
-        p_sql_username: payload.sqlUsername,
-        p_database_name: payload.databaseName,
-        p_plain_password: payload.sqlPassword || null,
-        p_notes: payload.notes || null,
+      const { error } = await supabase.rpc('upsert_vault_credential', {
         p_id: payload.id || null,
-        p_owner_company: payload.ownerCompany || null,
-      } as any);
+        p_vault_category_id: payload.vaultCategoryId,
+        p_title: payload.title,
+        p_username: payload.username,
+        p_password: payload.password || null,
+        p_metadata: payload.metadata,
+        p_notes: payload.notes || null,
+      });
 
       if (error) throw error;
       return { success: true };
     } catch (error) {
       const parsed = supabaseDataService.parseSupabaseError(error);
-      console.error('Upsert SQL credential error:', {
+      console.error('Upsert vault credential error:', {
         raw: error,
         parsed,
       });
@@ -1194,31 +1204,31 @@ export const supabaseDataService = {
     }
   },
 
-  revealClientSqlPassword: async (credentialId: string): Promise<string | null> => {
+  revealVaultPassword: async (credentialId: string): Promise<string | null> => {
     try {
-      const { data, error } = await supabase.rpc('reveal_client_sql_password', {
+      const { data, error } = await supabase.rpc('reveal_vault_password', {
         p_credential_id: credentialId,
-      } as any);
+      });
 
       if (error) throw error;
       return (data as string) || null;
     } catch (error) {
-      console.error('Reveal SQL password error:', error);
+      console.error('Reveal vault password error:', error);
       return null;
     }
   },
 
-  deleteClientSqlCredential: async (credentialId: string): Promise<{ success: boolean; error?: string }> => {
+  deleteVaultCredential: async (credentialId: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { error } = await supabase.rpc('delete_client_sql_credential', {
+      const { error } = await supabase.rpc('delete_vault_credential', {
         p_credential_id: credentialId,
-      } as any);
+      });
 
       if (error) throw error;
       return { success: true };
     } catch (error) {
       const parsed = supabaseDataService.parseSupabaseError(error);
-      console.error('Delete SQL credential error:', {
+      console.error('Delete vault credential error:', {
         raw: error,
         parsed,
       });
@@ -1226,26 +1236,25 @@ export const supabaseDataService = {
     }
   },
 
-  getSqlAuditLogs: async (): Promise<SqlAuditLog[]> => {
+  getVaultAuditLogs: async (): Promise<VaultAuditLog[]> => {
     try {
-      const { data, error } = await supabase.rpc('get_sql_audit_logs');
+      const { data, error } = await supabase.rpc('get_vault_audit_logs');
 
-      if (error) {
-        console.error('Supabase RPC error get_sql_audit_logs:', error);
-        throw error;
-      }
+      if (error) throw error;
 
       return (data || []).map((row: any) => ({
         id: row.id,
         credentialId: row.credential_id,
-        companyName: row.company_name,
+        credentialTitle: row.credential_title,
+        vaultCategoryId: row.vault_category_id,
+        vaultCategoryName: row.vault_category_name,
         actorUserId: row.actor_user_id,
         actorName: row.actor_name,
         action: row.action,
         createdAt: row.created_at
       }));
     } catch (error) {
-      console.error('Error fetching sql audit logs via RPC:', error);
+      console.error('Error fetching vault audit logs:', error);
       return [];
     }
   }

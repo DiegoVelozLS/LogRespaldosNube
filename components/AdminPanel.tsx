@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { BackupSchedule, BackupLog, BackupType, FrequencyType, UserRole, User, Server, ROLE_LABELS, SqlAuditLog } from '../types';
+import { BackupSchedule, BackupLog, BackupType, FrequencyType, UserRole, User, Server, ROLE_LABELS, VaultAuditLog } from '../types';
 import { supabaseDataService } from '../services/supabaseDataService';
 import { BACKUP_TYPE_ICONS, STATUS_COLORS } from '../constants';
+import VaultConfiguration from './VaultConfiguration';
 
 interface ConfirmDeleteModalProps {
   isOpen: boolean;
@@ -277,7 +278,7 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
 
 interface AdminPanelProps {
   user: User;
-  initialTab?: 'schedules' | 'users' | 'servers' | 'vault-audit';
+  initialTab?: 'schedules' | 'users' | 'servers' | 'vault-audit' | 'vault-config';
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' }) => {
@@ -293,9 +294,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
   const [logs, setLogs] = useState<BackupLog[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [servers, setServers] = useState<Server[]>([]);
-  const [auditLogs, setAuditLogs] = useState<SqlAuditLog[]>([]);
+  const [auditLogs, setAuditLogs] = useState<VaultAuditLog[]>([]);
+  const [auditFilter, setAuditFilter] = useState<string>('');
   const [newServerName, setNewServerName] = useState('');
-  const [activeTab, setActiveTab] = useState<'schedules' | 'users' | 'servers' | 'vault-audit'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'schedules' | 'users' | 'servers' | 'vault-audit' | 'vault-config'>(initialTab);
   const [loading, setLoading] = useState(true);
 
   // Forms states
@@ -318,7 +320,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
         supabaseDataService.getLogs(),
         supabaseDataService.getUsers(),
         supabaseDataService.getServers(),
-        supabaseDataService.getSqlAuditLogs()
+        supabaseDataService.getVaultAuditLogs()
       ]);
       setSchedules(schedulesData);
       setLogs(logsData);
@@ -453,6 +455,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
               { id: 'users', label: 'Usuarios' },
               { id: 'servers', label: 'Servidores' },
               { id: 'vault-audit', label: 'Auditoría Bóveda' },
+              { id: 'vault-config', label: 'Config Bóvedas' },
             ].map((t) => (
               <button
                 key={t.id}
@@ -733,11 +736,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fadeIn">
           <div className="p-6 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
             <div>
-              <h3 className="text-xl font-bold text-slate-800">Auditoría de Bóveda SQL</h3>
+                <h3 className="text-xl font-bold text-slate-800">Auditoría del Gestor de Claves</h3>
               <p className="text-sm text-slate-500 mt-1">Registro histórico de accesos y modificaciones a las credenciales</p>
             </div>
-            <div className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-bold rounded-lg border border-blue-200">
-              {auditLogs.length} Registros
+            <div className="flex items-center gap-4">
+              <select
+                value={auditFilter}
+                onChange={e => setAuditFilter(e.target.value)}
+                className="p-2 border border-slate-300 rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todas las Bóvedas</option>
+                {Array.from(new Set(auditLogs.map(l => l.vaultCategoryName))).filter(Boolean).map(catName => (
+                  <option key={catName} value={catName}>{catName}</option>
+                ))}
+              </select>
+              <div className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-bold rounded-lg border border-blue-200">
+                {auditLogs.filter(l => !auditFilter || l.vaultCategoryName === auditFilter).length} Registros
+              </div>
             </div>
           </div>
           
@@ -748,18 +763,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha y Hora</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Usuario</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Acción</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Registro (Cliente)</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Bóveda</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Registro</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {auditLogs.length === 0 ? (
+                 {auditLogs.filter(l => !auditFilter || l.vaultCategoryName === auditFilter).length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">
+                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">
                       No hay registros de auditoría disponibles
                     </td>
                   </tr>
                 ) : (
-                  auditLogs.map((log) => {
+                  auditLogs
+                    .filter(log => !auditFilter || log.vaultCategoryName === auditFilter)
+                    .map((log) => {
                     let actionLabel = log.action;
                     let actionColor = "bg-slate-100 text-slate-700";
                     
@@ -815,11 +833,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
                           </span>
                         </td>
                         <td className="px-6 py-4">
+                          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                            {log.vaultCategoryName}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                             </svg>
-                            <span className="font-medium text-slate-700">{log.companyName}</span>
+                            <span className="font-medium text-slate-700">{log.credentialTitle}</span>
                           </div>
                         </td>
                       </tr>
@@ -829,6 +852,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+      {activeTab === 'vault-config' && role === UserRole.ADMIN && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fadeIn">
+          <VaultConfiguration users={users} />
         </div>
       )}
     </div>

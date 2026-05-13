@@ -15,9 +15,9 @@ import AdminPanel from './components/AdminPanel';
 import AccountProfile from './components/AccountProfile';
 import MonthlyReport from './components/MonthlyReport';
 import ClientDirectory from './components/ClientDirectory';
-import ClientSqlVault from './components/ClientSqlVault';
+import PasswordManager from './components/PasswordManager';
 
-type TabType = 'home' | 'announcements' | 'documents' | 'employees' | 'backups' | 'register' | 'admin' | 'stats' | 'profile' | 'reports' | 'clients' | 'sql-vault';
+type TabType = 'home' | 'announcements' | 'documents' | 'employees' | 'backups' | 'register' | 'admin' | 'stats' | 'profile' | 'reports' | 'clients' | 'password-manager';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -235,8 +235,8 @@ const App: React.FC = () => {
   
   // ADMIN y TECH pueden ver respaldos, SOPORTE no
   const canViewBackups = isAdmin || isTech;
-  // Todos los roles pueden ver la boveda SQL
-  const canViewSqlVault = isAdmin || isTech || isSoporte;
+  // Todos los roles pueden ver el gestor (las restricciones son internas a cada bóveda)
+  const canViewPasswordManager = isAdmin || isTech || isSoporte;
   // Solo ADMIN puede ver administración
   const canViewAdmin = isAdmin;
 
@@ -312,12 +312,12 @@ const App: React.FC = () => {
             <span className="font-medium">Directorio</span>
           </button>
 
-          {canViewSqlVault && (
-            <button onClick={() => handleNavigate('sql-vault')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'sql-vault' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+          {canViewPasswordManager && (
+            <button onClick={() => handleNavigate('password-manager')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'password-manager' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c1.657 0 3-1.343 3-3S13.657 5 12 5s-3 1.343-3 3 1.343 3 3 3zm0 0v2m-7 6h14a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
-              <span className="font-medium">Boveda SQL</span>
+                <span className="font-medium">Gestor de Claves</span>
             </button>
           )}
 
@@ -413,7 +413,7 @@ const App: React.FC = () => {
           {activeTab === 'stats' && <AdminPanel user={user} initialTab="stats" />}
           {activeTab === 'profile' && <AccountProfile user={user} />}
           {activeTab === 'clients' && <ClientDirectory user={user} />}
-          {activeTab === 'sql-vault' && <ClientSqlVault user={user} />}
+          {activeTab === 'password-manager' && <PasswordManager user={user} />}
           {activeTab === 'reports' && <MonthlyReport user={user} />}
         </div>
       </main>
