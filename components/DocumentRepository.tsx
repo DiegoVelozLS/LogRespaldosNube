@@ -35,7 +35,6 @@ const DocumentRepository: React.FC = () => {
   const [currentCategoryName, setCurrentCategoryName] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [rootSearchTerm, setRootSearchTerm] = useState('');
-  const [rootView, setRootView] = useState<'folders' | 'files'>('folders');
   const [isLoading, setIsLoading] = useState(true);
   const [noGoogleToken, setNoGoogleToken] = useState(false);
   const [invalidApiKey, setInvalidApiKey] = useState(false);
@@ -241,101 +240,73 @@ const DocumentRepository: React.FC = () => {
           </p>
         </div>
 
-        <section className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-5 shadow-sm space-y-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="inline-flex bg-slate-100 rounded-xl p-1 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => {
-                  setRootView('folders');
-                  setRootSearchTerm('');
-                }}
-                className={`flex-1 sm:flex-none px-4 py-2 text-sm font-semibold rounded-lg transition ${
-                  rootView === 'folders' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                Carpetas ({categories.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setRootView('files')}
-                className={`flex-1 sm:flex-none px-4 py-2 text-sm font-semibold rounded-lg transition ${
-                  rootView === 'files' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                Archivos en raiz ({rootDocuments.length})
-              </button>
+        {/* Carpetas */}
+        <div className="space-y-4">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Carpetas</h2>
+          {isLoading && categories.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 opacity-50">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900 mb-4"></div>
+              <p className="text-slate-400 text-sm font-light uppercase tracking-widest">Sincronizando con Drive...</p>
             </div>
-
-            {rootView === 'files' && (
-              <div className="relative w-full sm:max-w-sm group">
-                <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Buscar archivo en raiz..."
-                  value={rootSearchTerm}
-                  onChange={(e) => setRootSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
-                />
-              </div>
-            )}
-          </div>
-
-          {rootView === 'folders' ? (
+          ) : categories.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {isLoading && categories.length === 0 ? (
-                <div className="col-span-full flex flex-col items-center justify-center py-20 grayscale opacity-50">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900 mb-4"></div>
-                  <p className="text-slate-400 text-sm font-light uppercase tracking-widest">Sincronizando con Drive...</p>
-                </div>
-              ) : categories.length > 0 ? (
-                categories.map((category) => {
-                  const colors = CATEGORY_COLORS[category.id] || CATEGORY_COLORS.default;
-
-                  return (
-                    <button
-                      key={category.id}
-                      onClick={() => {
-                        setSelectedCategory(category.id);
-                        setCurrentCategoryName(category.name);
-                      }}
-                      className="group relative bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all duration-300 overflow-hidden text-left"
-                    >
-                      <div className={`absolute top-0 left-0 bottom-0 w-1 ${colors.accent} opacity-0 group-hover:opacity-100 transition-opacity`} />
-
-                      <div className="p-5">
-                        <div className="flex items-start justify-between mb-5">
-                          <div className="p-3 bg-slate-50 rounded-lg text-slate-400 group-hover:text-slate-600 transition-colors">
-                            <FolderIcon />
-                          </div>
-                        </div>
-
-                        <h3 className="text-base font-semibold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">
-                          {category.name}
-                        </h3>
-
-                        <p className="text-sm text-slate-500 line-clamp-2 font-light">
-                          {category.description}
-                        </p>
+              {categories.map((category) => {
+                const colors = CATEGORY_COLORS[category.id] || CATEGORY_COLORS.default;
+                return (
+                  <button
+                    key={category.id}
+                    onClick={() => {
+                      setSelectedCategory(category.id);
+                      setCurrentCategoryName(category.name);
+                    }}
+                    className="group relative bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all duration-300 overflow-hidden text-left"
+                  >
+                    <div className={`absolute top-0 left-0 bottom-0 w-1 ${colors.accent} opacity-0 group-hover:opacity-100 transition-opacity`} />
+                    <div className="p-5">
+                      <div className="p-3 bg-slate-50 rounded-lg text-slate-400 group-hover:text-slate-600 transition-colors inline-block mb-4">
+                        <FolderIcon />
                       </div>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="col-span-full flex flex-col items-center justify-center py-20">
-                  <svg className="w-16 h-16 text-slate-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      <h3 className="text-base font-semibold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">
+                        {category.name}
+                      </h3>
+                      <p className="text-sm text-slate-500 line-clamp-2 font-light">{category.description}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-slate-400 text-sm">No hay carpetas disponibles.</p>
+          )}
+        </div>
+
+        {/* Archivos en raíz */}
+        {(isLoading || rootDocuments.length > 0) && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
+                Archivos en raíz
+                {!isLoading && <span className="ml-2 text-slate-300 font-normal normal-case">({rootDocuments.length})</span>}
+              </h2>
+              {!isLoading && rootDocuments.length > 0 && (
+                <div className="relative w-full sm:max-w-xs group">
+                  <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
-                  <p className="text-slate-500 text-sm font-light">No hay carpetas disponibles</p>
+                  <input
+                    type="text"
+                    placeholder="Buscar archivo..."
+                    value={rootSearchTerm}
+                    onChange={(e) => setRootSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                  />
                 </div>
               )}
             </div>
-          ) : (
-            <div className="overflow-hidden rounded-xl border border-slate-200">
+
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
               {isLoading ? (
-                <div className="text-sm text-slate-400 p-6">Cargando archivos de raiz...</div>
+                <div className="p-6 text-sm text-slate-400">Cargando archivos...</div>
               ) : filteredRootDocuments.length > 0 ? (
                 <div className="divide-y divide-slate-100">
                   {filteredRootDocuments.map((doc) => (
@@ -344,35 +315,33 @@ const DocumentRepository: React.FC = () => {
                       href={doc.fileUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-3 p-4 hover:bg-slate-50 transition-colors"
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
                     >
-                      <div className="h-10 w-10 rounded-lg bg-slate-100 flex items-center justify-center text-lg text-slate-500 shrink-0">
+                      <div className="h-9 w-9 rounded-lg bg-slate-100 flex items-center justify-center text-base shrink-0">
                         {getFileIcon(doc.fileType)}
                       </div>
-
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-800 truncate">{doc.name}</p>
-                        <p className="text-xs text-slate-500 truncate">{doc.description || 'Archivo ubicado en la carpeta raiz'}</p>
+                        <p className="text-sm font-medium text-slate-800 truncate">{doc.name}</p>
+                        {doc.description && (
+                          <p className="text-xs text-slate-400 truncate">{doc.description}</p>
+                        )}
                       </div>
-
-                      <div className="hidden md:flex items-center gap-2 shrink-0">
+                      <div className="hidden md:flex items-center gap-3 shrink-0">
                         <span className={`px-2 py-0.5 text-[10px] font-bold rounded border uppercase tracking-widest ${getFileTypeColor(doc.fileType)}`}>
                           {doc.fileType}
                         </span>
-                        <span className="text-[10px] text-slate-400 font-medium uppercase">{doc.fileSize}</span>
+                        <span className="text-[10px] text-slate-400">{doc.fileSize}</span>
                         <span className="text-[10px] text-slate-400">{formatDate(doc.createdAt)}</span>
                       </div>
                     </a>
                   ))}
                 </div>
               ) : (
-                <div className="bg-slate-50 p-8 text-center border border-dashed border-slate-300 rounded-xl m-3">
-                  <p className="text-slate-500 text-sm font-light">No hay archivos en la raiz para el filtro aplicado.</p>
-                </div>
+                <div className="p-6 text-sm text-slate-400 text-center">No se encontraron archivos para ese criterio.</div>
               )}
             </div>
-          )}
-        </section>
+          </div>
+        )}
 
         {/* Info de documentos totales */}
         <div className="text-center">
