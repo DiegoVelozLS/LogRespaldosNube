@@ -6,7 +6,7 @@ import { googleDriveService } from '../services/googleDriveService';
 
 interface HomeProps {
   user: User;
-  onNavigate: (tab: string, announcementId?: string) => void;
+  onNavigate: (tab: string) => void;
 }
 
 // Iconos SVG profesionales
@@ -88,14 +88,19 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
   const [docCount, setDocCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
+  const getPlainTextContent = (value: string) => {
+    if (!value) return '';
+
+    const parser = new DOMParser();
+    return parser.parseFromString(value, 'text/html').body.textContent || value;
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Obtenemos el token de Google para acceso seguro
         const googleToken = await supabaseDataService.getGoogleToken();
-
-        // Ejecutamos las peticiones. Si Drive falla, retornamos 0 para no romper el resto de la página.
+        
         const [employeesData, totalDocs] = await Promise.all([
           supabaseDataService.getEmployees(),
           googleDriveService.getTotalDocumentCount(googleToken || undefined).catch(err => {
@@ -104,12 +109,9 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
           })
         ]);
 
-        // Crear anuncios de cumpleaños si corresponde hoy
         await announcementService.ensureBirthdayAnnouncements(employeesData);
-
-        // Cargar anuncios después (incluye el de cumpleaños recién creado)
         const announcementsData = await announcementService.getAnnouncements();
-
+        
         setAnnouncements(announcementsData);
         setEmployees(employeesData);
         setDocCount(totalDocs || 0);
@@ -122,6 +124,17 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
 
     fetchData();
   }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-20">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sincronizando información</span>
+        </div>
+      </div>
+    );
+  }
 
   const visibleAnnouncements = announcements.filter(
     a => (!a.deadline || new Date(a.deadline) >= new Date())
@@ -320,9 +333,8 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
               visibleAnnouncements.slice(0, 4).map((announcement) => (
                 <div
                   key={announcement.id}
-                  onClick={() => onNavigate('announcements', announcement.id)}
-                  className={`bg-white rounded-xl p-5 shadow-sm border-l-4 cursor-pointer group ${announcement.isPinned ? 'border-l-blue-500 bg-blue-50/30' : 'border-l-slate-300'
-                    } hover:shadow-md hover:border-l-blue-400 transition`}
+                  className={`bg-white rounded-xl p-5 shadow-sm border-l-4 ${announcement.isPinned ? 'border-l-blue-500 bg-blue-50/30' : 'border-l-slate-300'
+                    } hover:shadow-md transition`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
@@ -339,11 +351,11 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
                         </span>
                         {getPriorityIndicator(announcement.priority)}
                       </div>
-                      <h3 className="font-semibold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">
+                      <h3 className="font-semibold text-slate-800 mb-2">
                         {announcement.title}
                       </h3>
-                      <p className="text-sm text-slate-600 line-clamp-2">
-                        {announcement.content}
+                      <p className="text-sm text-slate-600 line-clamp-2 whitespace-pre-line">
+                        {getPlainTextContent(announcement.content)}
                       </p>
                       {announcement.deadline && (
                         <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 text-slate-600 border border-slate-200 text-xs font-medium shadow-sm">
