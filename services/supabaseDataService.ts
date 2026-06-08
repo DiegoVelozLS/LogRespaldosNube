@@ -31,6 +31,12 @@ export const supabaseDataService = {
     if (combined.toLowerCase().includes('credential not found')) {
       return 'La credencial ya no existe (posiblemente fue eliminada previamente).';
     }
+    if (combined.toLowerCase().includes('only admins can reset vault pin')) {
+      return 'Solo administradores pueden resetear el PIN de la boveda.';
+    }
+    if (combined.toLowerCase().includes('target user not found')) {
+      return 'No se encontro el usuario objetivo para resetear su PIN.';
+    }
     if (combined.toLowerCase().includes('duplicate key value violates unique constraint') || combined.toLowerCase().includes('idx_client_sql_credentials_company_name_uniq')) {
       return 'Ya existe un registro con este nombre de empresa en la bóveda. Prueba con otro nombre.';
     }
@@ -808,6 +814,22 @@ export const supabaseDataService = {
     }
   },
 
+  adminResetUserPin: async (targetUserId: string, reason?: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const { data, error } = await supabase.rpc('admin_reset_user_vault_pin', {
+        p_target_user_id: targetUserId,
+        p_reason: reason || null
+      });
+
+      if (error) throw error;
+      return { success: !!data };
+    } catch (error) {
+      const parsed = supabaseDataService.parseSupabaseError(error);
+      console.error('Error resetting user vault pin:', { raw: error, parsed });
+      return { success: false, error: parsed };
+    }
+  },
+
   // ==================== EMPLOYEES ====================
 
   getEmployees: async (): Promise<Employee[]> => {
@@ -1245,9 +1267,9 @@ export const supabaseDataService = {
       return (data || []).map((row: any) => ({
         id: row.id,
         credentialId: row.credential_id,
-        credentialTitle: row.credential_title,
+        credentialTitle: row.credential_title || 'Registro administrativo',
         vaultCategoryId: row.vault_category_id,
-        vaultCategoryName: row.vault_category_name,
+        vaultCategoryName: row.vault_category_name || 'Administración',
         actorUserId: row.actor_user_id,
         actorName: row.actor_name,
         action: row.action,

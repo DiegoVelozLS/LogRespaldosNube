@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { BackupSchedule, BackupLog, BackupType, FrequencyType, UserRole, User, Server, ROLE_LABELS, VaultAuditLog } from '../types';
+import { BackupSchedule, BackupLog, BackupType, FrequencyType, UserRole, User, ROLE_LABELS, VaultAuditLog } from '../types';
 import { supabaseDataService } from '../services/supabaseDataService';
 import { BACKUP_TYPE_ICONS, STATUS_COLORS } from '../constants';
 import VaultConfiguration from './VaultConfiguration';
@@ -102,6 +102,95 @@ const ConfirmDeleteUserModal: React.FC<ConfirmDeleteUserModalProps> = ({ isOpen,
             className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition"
           >
             Sí, Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface ResetUserPinModalProps {
+  isOpen: boolean;
+  targetUser: User | null;
+  reason: string;
+  error: string;
+  isSubmitting: boolean;
+  onReasonChange: (value: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+const ResetUserPinModal: React.FC<ResetUserPinModalProps> = ({
+  isOpen,
+  targetUser,
+  reason,
+  error,
+  isSubmitting,
+  onReasonChange,
+  onConfirm,
+  onCancel
+}) => {
+  if (!isOpen || !targetUser) return null;
+
+  return (
+    <div className="fixed inset-0 bg-slate-100/50 backdrop-blur-[1px] flex items-center justify-center z-50 animate-fadeIn">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden transform transition-all">
+        <div className="p-6 border-b border-slate-200">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
+              <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 .687-.139 1.342-.39 1.938L10 16h4l-1.61-3.062A4.48 4.48 0 0012 11zm0-8a7 7 0 00-7 7c0 1.649.57 3.163 1.523 4.355L5 20h14l-1.523-5.645A6.96 6.96 0 0019 10a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">Resetear PIN de bóveda</h3>
+              <p className="text-sm text-slate-500">Esta acción invalidará el PIN actual del usuario</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="text-sm text-slate-700">
+            Usuario objetivo:
+            <span className="ml-2 font-bold text-slate-900">{targetUser.name} {targetUser.lastName}</span>
+          </div>
+
+          <p className="text-sm text-slate-600">
+            El usuario deberá ingresar de nuevo a la bóveda y configurar un PIN nuevo.
+          </p>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-bold text-slate-700">Motivo del reseteo</label>
+            <textarea
+              value={reason}
+              onChange={(e) => onReasonChange(e.target.value)}
+              rows={3}
+              placeholder="Ej: Usuario olvidó PIN y solicitó recuperación"
+              className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none resize-none"
+            />
+          </div>
+
+          {error && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className="p-6 bg-slate-50 border-t border-slate-200 flex gap-3">
+          <button
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="flex-1 px-4 py-3 bg-white border-2 border-slate-300 text-slate-700 rounded-xl font-bold hover:bg-slate-100 transition disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isSubmitting}
+            className="flex-1 px-4 py-3 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 transition disabled:opacity-50"
+          >
+            {isSubmitting ? 'Reseteando...' : 'Confirmar reseteo'}
           </button>
         </div>
       </div>
@@ -278,26 +367,18 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
 
 interface AdminPanelProps {
   user: User;
-  initialTab?: 'schedules' | 'users' | 'servers' | 'vault-audit' | 'vault-config';
+  initialTab?: 'schedules' | 'users' | 'vault-audit' | 'vault-config';
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' }) => {
   const role = user.role;  // Extraer role del usuario
 
-  // Verificar permisos - ADMIN tiene todos los permisos
-  const hasPermission = (key: string) => {
-    if (role === 'ADMIN') return true;
-    return user.permissions?.includes(key) ?? false;
-  };
-
   const [schedules, setSchedules] = useState<BackupSchedule[]>([]);
   const [logs, setLogs] = useState<BackupLog[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [servers, setServers] = useState<Server[]>([]);
   const [auditLogs, setAuditLogs] = useState<VaultAuditLog[]>([]);
   const [auditFilter, setAuditFilter] = useState<string>('');
-  const [newServerName, setNewServerName] = useState('');
-  const [activeTab, setActiveTab] = useState<'schedules' | 'users' | 'servers' | 'vault-audit' | 'vault-config'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'schedules' | 'users' | 'vault-audit' | 'vault-config'>(initialTab);
   const [loading, setLoading] = useState(true);
 
   // Forms states
@@ -311,21 +392,25 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
   const [scheduleToDelete, setScheduleToDelete] = useState<BackupSchedule | null>(null);
   const [deleteUserModalOpen, setDeleteUserModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [resetPinModalOpen, setResetPinModalOpen] = useState(false);
+  const [userToResetPin, setUserToResetPin] = useState<User | null>(null);
+  const [resetPinReason, setResetPinReason] = useState('Recuperacion de acceso por olvido de PIN');
+  const [resetPinLoading, setResetPinLoading] = useState(false);
+  const [resetPinError, setResetPinError] = useState('');
+  const [adminNotice, setAdminNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      const [schedulesData, logsData, usersData, serversData, auditLogsData] = await Promise.all([
+      const [schedulesData, logsData, usersData, auditLogsData] = await Promise.all([
         supabaseDataService.getSchedules(),
         supabaseDataService.getLogs(),
         supabaseDataService.getUsers(),
-        supabaseDataService.getServers(),
         supabaseDataService.getVaultAuditLogs()
       ]);
       setSchedules(schedulesData);
       setLogs(logsData);
       setUsers(usersData);
-      setServers(serversData);
       setAuditLogs(auditLogsData);
       setLoading(false);
     };
@@ -384,19 +469,52 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
     setEditingUser(null);
   };
 
-  const handleAddServer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newServerName.trim()) return;
-    await supabaseDataService.saveServer(newServerName.trim());
-    const updatedServers = await supabaseDataService.getServers();
-    setServers(updatedServers);
-    setNewServerName('');
+  const handleResetUserPin = async (targetUser: User) => {
+    setUserToResetPin(targetUser);
+    setResetPinReason('Recuperacion de acceso por olvido de PIN');
+    setResetPinError('');
+    setResetPinModalOpen(true);
   };
 
-  const handleDeleteServer = async (serverId: string) => {
-    await supabaseDataService.deleteServer(serverId);
-    const updatedServers = await supabaseDataService.getServers();
-    setServers(updatedServers);
+  const handleConfirmResetUserPin = async () => {
+    if (!userToResetPin) {
+      setResetPinError('No se encontró el usuario objetivo para resetear PIN.');
+      return;
+    }
+    const targetUser = userToResetPin;
+
+    if (!resetPinReason.trim()) {
+      setResetPinError('Debes ingresar un motivo para registrar la auditoria.');
+      return;
+    }
+
+    setResetPinLoading(true);
+    setResetPinError('');
+    setAdminNotice(null);
+
+    const result = await supabaseDataService.adminResetUserPin(targetUser.id, resetPinReason.trim());
+    if (!result.success) {
+      setResetPinLoading(false);
+      setResetPinError(result.error || 'No se pudo resetear el PIN del usuario.');
+      return;
+    }
+
+    const refreshedAudit = await supabaseDataService.getVaultAuditLogs();
+    setAuditLogs(refreshedAudit);
+    setResetPinLoading(false);
+    setResetPinModalOpen(false);
+    setUserToResetPin(null);
+    setAdminNotice({
+      type: 'success',
+      message: `PIN reseteado correctamente para ${targetUser.name} ${targetUser.lastName}.`
+    });
+  };
+
+  const handleCancelResetUserPin = () => {
+    if (resetPinLoading) return;
+    setResetPinModalOpen(false);
+    setUserToResetPin(null);
+    setResetPinError('');
   };
 
   const statusStats = [
@@ -443,6 +561,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
         }}
       />
 
+      <ResetUserPinModal
+        isOpen={resetPinModalOpen}
+        targetUser={userToResetPin}
+        reason={resetPinReason}
+        error={resetPinError}
+        isSubmitting={resetPinLoading}
+        onReasonChange={(value) => setResetPinReason(value)}
+        onConfirm={handleConfirmResetUserPin}
+        onCancel={handleCancelResetUserPin}
+      />
+
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold text-slate-800">
           Centro de Control Admin
@@ -453,7 +582,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
             {[
               { id: 'schedules', label: 'Programación' },
               { id: 'users', label: 'Usuarios' },
-              { id: 'servers', label: 'Servidores' },
               { id: 'vault-audit', label: 'Auditoría Bóveda' },
               { id: 'vault-config', label: 'Config Bóvedas' },
             ].map((t) => (
@@ -590,6 +718,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
             </button>
           </div>
 
+          {adminNotice && (
+            <div className={`mb-6 p-3 rounded-xl border text-sm ${adminNotice.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+              {adminNotice.message}
+            </div>
+          )}
+
           {showUserForm && (
             <form key={editingUser?.id || 'new'} onSubmit={handleCreateUser} className="mb-8 p-6 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
               <h4 className="text-lg font-bold text-slate-800 mb-2">{editingUser ? 'Editar Usuario' : 'Nuevo Usuario'}</h4>
@@ -653,6 +787,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
                       </button>
                       <button
                         onClick={() => {
+                          setUserMenuOpenId(null);
+                          void handleResetUserPin(u);
+                        }}
+                        className="w-full text-left px-4 py-3 hover:bg-amber-50 transition flex items-center gap-3 text-sm border-t border-slate-100"
+                      >
+                        <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 .687-.139 1.342-.39 1.938L10 16h4l-1.61-3.062A4.48 4.48 0 0012 11zm0-8a7 7 0 00-7 7c0 1.649.57 3.163 1.523 4.355L5 20h14l-1.523-5.645A6.96 6.96 0 0019 10a7 7 0 00-7-7z" />
+                        </svg>
+                        <span className="font-medium text-amber-700">Resetear PIN bóveda</span>
+                      </button>
+                      <button
+                        onClick={() => {
                           setUserToDelete(u);
                           setDeleteUserModalOpen(true);
                           setUserMenuOpenId(null);
@@ -669,65 +815,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'servers' && role === UserRole.ADMIN && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 animate-fadeIn">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-2xl font-bold text-slate-800">Dirección de Servidores</h3>
-              <p className="text-sm text-slate-500">Configura los nombres de los servidores que aparecerán en el directorio.</p>
-            </div>
-          </div>
-
-          <form onSubmit={handleAddServer} className="flex gap-3 mb-8">
-            <input
-              type="text"
-              placeholder="Nombre del nuevo servidor (ej: Servidor 3)"
-              value={newServerName}
-              onChange={e => setNewServerName(e.target.value)}
-              className="flex-1 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
-              required
-            />
-            <button
-              type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-sm flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Añadir
-            </button>
-          </form>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {servers.length === 0 ? (
-              <div className="col-span-full py-12 text-center text-slate-400 italic bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-                No hay servidores configurados. Añade uno arriba.
-              </div>
-            ) : (
-              servers.map(s => (
-                <div key={s.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between group hover:border-blue-200 transition">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-bold text-xs">
-                      S
-                    </div>
-                    <span className="font-bold text-slate-700">{s.name}</span>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteServer(s.id)}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
-                    title="Eliminar servidor"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              ))
-            )}
           </div>
         </div>
       )}
@@ -802,6 +889,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
                         actionLabel = 'Rotó Contraseña';
                         actionColor = 'bg-purple-100 text-purple-700 border-purple-200';
                         break;
+                      case 'RESET_USER_PIN':
+                        actionLabel = 'Reseteó PIN';
+                        actionColor = 'bg-orange-100 text-orange-700 border-orange-200';
+                        break;
                     }
 
                     return (
@@ -838,12 +929,24 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                            </svg>
-                            <span className="font-medium text-slate-700">{log.credentialTitle}</span>
-                          </div>
+                          {log.action === 'RESET_USER_PIN' ? (
+                            <div className="inline-flex items-center">
+                              <span
+                                title={log.credentialTitle}
+                                className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-xs font-bold text-orange-700 cursor-help"
+                              >
+                                <span className="w-2 h-2 rounded-full bg-orange-500" />
+                                Reseteo
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                              </svg>
+                              <span className="font-medium text-slate-700">{log.credentialTitle}</span>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );

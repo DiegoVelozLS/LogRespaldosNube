@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { User, UserRole, VaultCategory, VaultCredential, VaultCredentialInput, VaultFieldSchema } from '../types';
 import { supabaseDataService } from '../services/supabaseDataService';
+import { supabase } from '../services/supabaseClient';
 import VaultPinModal from './VaultPinModal';
 
 interface PasswordManagerProps {
@@ -45,6 +46,18 @@ const PasswordManager: React.FC<PasswordManagerProps> = ({ user }) => {
 
   // Security
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const [securityNotice, setSecurityNotice] = useState<string | null>(null);
+
+  const lockVaultForPinReset = () => {
+    localStorage.removeItem(`vault_unlocked_${user.id}`);
+    setIsUnlocked(false);
+    setSelected(null);
+    setRevealedPassword(null);
+    setCopiedPassword(false);
+    setShowForm(false);
+    setEditing(null);
+    setSecurityNotice('Tu PIN fue reseteado por un administrador. Debes crear un nuevo PIN para continuar.');
+  };
 
   useEffect(() => {
     const lastUnlock = localStorage.getItem(`vault_unlocked_${user.id}`);
@@ -72,6 +85,58 @@ const PasswordManager: React.FC<PasswordManagerProps> = ({ user }) => {
       loadCredentials(activeCategoryId);
     }
   }, [activeCategoryId, isUnlocked]);
+
+  useEffect(() => {
+    if (!isUnlocked) return;
+
+    let disposed = false;
+
+    const validateCurrentPinStatus = async () => {
+      const stillHasPin = await supabaseDataService.checkHasPin();
+      if (!disposed && !stillHasPin) {
+        lockVaultForPinReset();
+      }
+    };
+
+    void validateCurrentPinStatus();
+
+    const intervalId = window.setInterval(() => {
+      void validateCurrentPinStatus();
+    }, 5000);
+
+    const onFocus = () => {
+      void validateCurrentPinStatus();
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+
+    const channel = supabase
+      .channel(`vault-pin-watch-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${user.id}`
+        },
+        (payload: any) => {
+          if (payload?.new?.vault_pin == null || payload?.new?.vault_pin === '') {
+            lockVaultForPinReset();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      disposed = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+      supabase.removeChannel(channel);
+    };
+  }, [isUnlocked, user.id]);
 
   const loadCategories = async () => {
     setLoading(true);
@@ -242,7 +307,12 @@ const PasswordManager: React.FC<PasswordManagerProps> = ({ user }) => {
   if (!isUnlocked) {
     return (
       <div className="relative min-h-[700px] w-full flex items-center justify-center bg-slate-50/50 rounded-3xl border border-slate-100 shadow-inner">
-        <VaultPinModal user={user} onUnlock={() => setIsUnlocked(true)} />
+        {securityNotice && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-2xl bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm font-medium">
+            {securityNotice}
+          </div>
+        )}
+        <VaultPinModal user={user} onUnlock={() => { setSecurityNotice(null); setIsUnlocked(true); }} />
       </div>
     );
   }
