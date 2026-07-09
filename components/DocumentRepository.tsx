@@ -26,7 +26,13 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; icon: string
   'dc5': { bg: 'bg-slate-50', border: 'border-slate-200', icon: 'text-slate-600', accent: 'bg-rose-600' },
 };
 
-const DocumentRepository: React.FC = () => {
+interface DocumentRepositoryProps {
+  initialCategoryId?: string | null;
+  initialCategoryName?: string;
+  initialDocumentId?: string;
+}
+
+const DocumentRepository: React.FC<DocumentRepositoryProps> = ({ initialCategoryId, initialCategoryName, initialDocumentId }) => {
   const [categories, setCategories] = useState<DocumentCategory[]>([]);
   const [subcategories, setSubcategories] = useState<DocumentCategory[]>([]);
   const [rootDocuments, setRootDocuments] = useState<Document[]>([]);
@@ -39,6 +45,26 @@ const DocumentRepository: React.FC = () => {
   const [noGoogleToken, setNoGoogleToken] = useState(false);
   const [invalidApiKey, setInvalidApiKey] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
+  const [highlightedDocumentId, setHighlightedDocumentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const normalizedCategoryId = initialCategoryId && initialCategoryId !== 'root' ? initialCategoryId : null;
+    setSelectedCategory(normalizedCategoryId);
+    setCurrentCategoryName(initialCategoryName || '');
+    setSearchTerm('');
+    setRootSearchTerm('');
+    setHighlightedDocumentId(initialDocumentId || null);
+  }, [initialCategoryId, initialCategoryName, initialDocumentId]);
+
+  useEffect(() => {
+    if (!highlightedDocumentId) return;
+
+    const timer = window.setTimeout(() => {
+      setHighlightedDocumentId(null);
+    }, 2500);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightedDocumentId]);
 
   // Reconectar a Google Drive
   const handleGoogleReconnect = async () => {
@@ -495,7 +521,7 @@ const DocumentRepository: React.FC = () => {
                   href={doc.fileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group bg-white rounded-xl border border-slate-200 p-4 hover:border-blue-300 hover:shadow-md transition-all duration-300 flex flex-col justify-between text-left"
+                  className={`group rounded-xl border p-4 hover:border-blue-300 hover:shadow-md transition-all duration-300 flex flex-col justify-between text-left ${highlightedDocumentId === doc.id ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200' : 'bg-white border-slate-200'}`}
                 >
                   <div className="flex gap-4 items-start">
                     <div className="p-3 bg-slate-50 rounded-lg text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors shrink-0">

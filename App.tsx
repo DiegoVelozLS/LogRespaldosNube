@@ -25,6 +25,7 @@ const App: React.FC = () => {
   const [pendingAlerts, setPendingAlerts] = useState<number>(0);
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined);
   const [selectedAnnouncementId, setSelectedAnnouncementId] = useState<string | undefined>(undefined);
+  const [documentNavigation, setDocumentNavigation] = useState<{ categoryId?: string; categoryName?: string; documentId?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -240,9 +241,14 @@ const App: React.FC = () => {
   // Solo ADMIN puede ver administración
   const canViewAdmin = isAdmin;
 
-  const handleNavigate = (tab: string, announcementId?: string) => {
+  const handleNavigate = (tab: string, options?: { categoryId?: string; categoryName?: string; documentId?: string }) => {
     setActiveTab(tab as TabType);
-    setSelectedAnnouncementId(announcementId);
+    if (tab === 'documents') {
+      setDocumentNavigation(options ?? null);
+    } else {
+      setDocumentNavigation(null);
+    }
+    setSelectedAnnouncementId(undefined);
     setIsMenuOpen(false);
   };
 
@@ -399,7 +405,7 @@ const App: React.FC = () => {
               onClearTarget={() => setSelectedAnnouncementId(undefined)} 
             />
           )}
-          {activeTab === 'documents' && <DocumentRepository />}
+          {activeTab === 'documents' && <DocumentRepository initialCategoryId={documentNavigation?.categoryId} initialCategoryName={documentNavigation?.categoryName} initialDocumentId={documentNavigation?.documentId} />}
           {activeTab === 'employees' && <EmployeeDirectory user={user} />}
           {activeTab === 'backups' && <Dashboard user={user} onRefresh={() => { }} onNavigateToRegister={(scheduleId) => {
             setSelectedTaskId(scheduleId);

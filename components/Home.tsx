@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { User, Announcement, AnnouncementCategory, AnnouncementPriority, Employee } from '../types';
+import { User, Announcement, AnnouncementCategory, AnnouncementPriority, Employee, Document } from '../types';
 import { announcementService } from '../services/announcementService';
 import { supabaseDataService } from '../services/supabaseDataService';
 import { googleDriveService } from '../services/googleDriveService';
 
 interface HomeProps {
   user: User;
-  onNavigate: (tab: string) => void;
+  onNavigate: (tab: string, options?: { categoryId?: string; categoryName?: string; documentId?: string }) => void;
 }
 
 // Iconos SVG profesionales
@@ -85,8 +85,10 @@ const BoltIcon = () => (
 const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [recentDocuments, setRecentDocuments] = useState<Document[]>([]);
   const [docCount, setDocCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
 
   const getPlainTextContent = (value: string) => {
     if (!value) return '';
@@ -99,22 +101,34 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const googleToken = await supabaseDataService.getGoogleToken();
-        
-        const [employeesData, totalDocs] = await Promise.all([
+        const [employeesData, announcementsData, googleToken] = await Promise.all([
           supabaseDataService.getEmployees(),
-          googleDriveService.getTotalDocumentCount(googleToken || undefined).catch(err => {
-            console.error('Counter error:', err);
-            return 0;
-          })
+          announcementService.getAnnouncements(),
+          supabaseDataService.getGoogleToken()
         ]);
 
-        await announcementService.ensureBirthdayAnnouncements(employeesData);
-        const announcementsData = await announcementService.getAnnouncements();
-        
-        setAnnouncements(announcementsData);
         setEmployees(employeesData);
-        setDocCount(totalDocs || 0);
+        setAnnouncements(announcementsData);
+
+        void announcementService.ensureBirthdayAnnouncements(employeesData).catch(error => {
+          console.error('Birthday announcements error:', error);
+        });
+
+        setLoadingDocuments(true);
+        void Promise.allSettled([
+          googleDriveService.getTotalDocumentCount(googleToken || undefined).then(count => {
+            setDocCount(count || 0);
+          }).catch(err => {
+            console.error('Counter error:', err);
+          }),
+          googleDriveService.getRecentDocuments(googleToken || undefined, 4).then(docs => {
+            setRecentDocuments(docs || []);
+          }).catch(err => {
+            console.error('Recent documents error:', err);
+          })
+        ]).finally(() => {
+          setLoadingDocuments(false);
+        });
       } catch (error) {
         console.error('Error loading dashboard data:', error);
       } finally {
@@ -190,6 +204,44 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
   const totalEmployees = employees.length;
   const totalDocuments = docCount;
   const pinnedAnnouncements = visibleAnnouncements.filter(a => a.isPinned).length;
+  const documentFeed = recentDocuments
+    .slice(0, 4)
+    .map((document) => ({
+      id: `document-${document.id}`,
+      type: 'document' as const,
+      title: document.name,
+      description: document.description || `Documento compartido en ${document.category}`,
+      createdAt: document.createdAt,
+      categoryLabel: document.category,
+      owner: 'Documentación',
+      isPinned: false,
+      fileUrl: document.fileUrl,
+      parentFolderId: document.parentFolderId,
+      categoryId: document.parentFolderId || 'root',
+      categoryName: document.category,
+    }));
+
+  const activityFeed = Array.from(
+    new Map(
+      [
+        ...visibleAnnouncements.map((announcement) => ({
+          id: `announcement-${announcement.id}`,
+          type: 'announcement' as const,
+          title: announcement.title,
+          description: getPlainTextContent(announcement.content),
+          createdAt: announcement.createdAt,
+          categoryLabel: getCategoryLabel(announcement.category),
+          owner: announcement.createdByName,
+          isPinned: announcement.isPinned,
+        })),
+        ...documentFeed
+      ].map((item) => [item.id, item])
+    ).values()
+  )
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 6);
+
+  const activityCount = activityFeed.length;
 
   return (
     <div className="space-y-6">
@@ -206,7 +258,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
       {/* Widgets de acceso rápido */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <button
-          onClick={() => onNavigate('announcements')}
+          onClick={() => onNavigate('documents')}
           className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-300 transition text-left"
         >
           <div className="flex items-center gap-3">
@@ -214,8 +266,8 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
               <MegaphoneIcon />
             </div>
             <div>
-              <p className="text-2xl font-bold text-slate-800">{visibleAnnouncements.length}</p>
-              <p className="text-sm text-slate-500">Anuncios</p>
+              <p className="text-2xl font-bold text-slate-800">{activityCount}</p>
+              <p className="text-sm text-slate-500">Novedades</p>
             </div>
           </div>
           {pinnedAnnouncements > 0 && (
@@ -226,6 +278,16 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
               {pinnedAnnouncements} importante{pinnedAnnouncements > 1 ? 's' : ''}
             </p>
           )}
+          <p className="mt-3 text-xs text-slate-500 flex items-center gap-1.5">
+            {loadingDocuments ? (
+              <span className="inline-flex items-center gap-1.5 text-blue-600">
+                <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                Actualizando documentos...
+              </span>
+            ) : (
+              'Anuncios + documentos recientes'
+            )}
+          </p>
         </button>
 
         <button
@@ -303,77 +365,97 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
         )}
       </div>
 
-      {/* Sección de anuncios */}
+      {/* Sección de actividad reciente */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Anuncios principales */}
+        {/* Feed principal */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <MegaphoneIcon /> Últimos Anuncios
+              <MegaphoneIcon /> Actividad reciente
             </h2>
-            <button
-              onClick={() => onNavigate('announcements')}
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-            >
-              Ver todos
-            </button>
+            <div className="flex items-center gap-3">
+              {loadingDocuments && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                  <span className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></span>
+                  Cargando documentos
+                </span>
+              )}
+              <button
+                onClick={() => onNavigate('documents')}
+                className="text-sm text-green-600 hover:text-green-800 font-medium"
+              >
+                Ver documentación
+              </button>
+              <button
+                onClick={() => onNavigate('announcements')}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Ver anuncios
+              </button>
+            </div>
           </div>
 
           <div className="space-y-4">
             {loading ? (
               <div className="bg-white rounded-xl p-8 text-center border border-slate-200">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="text-slate-500 mt-2 text-sm">Cargando anuncios...</p>
+                <p className="text-slate-500 mt-2 text-sm">Cargando novedades...</p>
               </div>
-            ) : visibleAnnouncements.length === 0 ? (
+            ) : activityFeed.length === 0 ? (
               <div className="bg-white rounded-xl p-8 text-center border border-slate-200">
-                <p className="text-slate-500 text-sm">No hay anuncios disponibles.</p>
+                <p className="text-slate-500 text-sm">No hay novedades disponibles por el momento.</p>
               </div>
             ) : (
-              visibleAnnouncements.slice(0, 4).map((announcement) => (
-                <div
-                  key={announcement.id}
-                  className={`bg-white rounded-xl p-5 shadow-sm border-l-4 ${announcement.isPinned ? 'border-l-blue-500 bg-blue-50/30' : 'border-l-slate-300'
-                    } hover:shadow-md transition`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        {announcement.isPinned && (
-                          <span className="text-blue-500" title="Anuncio fijado">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                            </svg>
-                          </span>
-                        )}
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getCategoryColor(announcement.category)}`}>
-                          {getCategoryLabel(announcement.category)}
-                        </span>
-                        {getPriorityIndicator(announcement.priority)}
+              activityFeed.map((item) => {
+                const isDocument = item.type === 'document';
+
+                const content = (
+                  <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 hover:shadow-md transition">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${isDocument ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                        {isDocument ? <DocumentIcon /> : <MegaphoneIcon />}
                       </div>
-                      <h3 className="font-semibold text-slate-800 mb-2">
-                        {announcement.title}
-                      </h3>
-                      <p className="text-sm text-slate-600 line-clamp-2 whitespace-pre-line">
-                        {getPlainTextContent(announcement.content)}
-                      </p>
-                      {announcement.deadline && (
-                        <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 text-slate-600 border border-slate-200 text-xs font-medium shadow-sm">
-                          <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          Vigente hasta el {new Date(announcement.deadline).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border ${isDocument ? 'bg-green-50 text-green-700 border-green-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                            {isDocument ? 'Documento' : 'Anuncio'}
+                          </span>
+                          <span className="text-xs text-slate-500">{item.categoryLabel}</span>
+                          {!isDocument && item.isPinned && (
+                            <span className="text-[11px] font-semibold text-blue-600">Destacado</span>
+                          )}
                         </div>
-                      )}
-                      <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
-                        <span>Por {announcement.createdByName}</span>
-                        <span>•</span>
-                        <span>{formatDate(announcement.createdAt)}</span>
+                        <h3 className="font-semibold text-slate-800">{item.title}</h3>
+                        <p className="text-sm text-slate-600 mt-1 line-clamp-2 whitespace-pre-line">
+                          {item.description}
+                        </p>
+                        <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
+                          <span>Por {item.owner}</span>
+                          <span>•</span>
+                          <span>{formatDate(item.createdAt)}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+
+                return isDocument ? (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onNavigate('documents', {
+                      categoryId: item.categoryId || 'root',
+                      categoryName: item.categoryName || item.categoryLabel,
+                      documentId: item.id.replace('document-', ''),
+                    })}
+                    className="block w-full text-left"
+                  >
+                    {content}
+                  </button>
+                ) : (
+                  <div key={item.id}>{content}</div>
+                );
+              })
             )}
           </div>
         </div>
