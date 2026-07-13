@@ -4,6 +4,7 @@ import { User, UserRole, ROLE_LABELS } from './types';
 import { APP_VERSION } from './constants';
 import { supabaseDataService } from './services/supabaseDataService';
 import { supabase } from './services/supabaseClient';
+import { favoritesService } from './utils/favoritesService';
 import { DashboardIcon, CheckIcon, AdminIcon, AlertIcon, ClockIcon, UserCircleIcon } from './components/Icons';
 import Home from './components/Home';
 import Announcements from './components/Announcements';
@@ -57,6 +58,8 @@ const App: React.FC = () => {
           }
           setActiveTab('home');
           hasLoadedInitialUser = true;
+          // Sincronizar favoritos desde Supabase en background
+          favoritesService.syncFromSupabase();
           const tasksToday = await supabaseDataService.getTasksForDate(new Date());
           setPendingAlerts(tasksToday.filter(t => !t.log).length);
         }
@@ -91,6 +94,8 @@ const App: React.FC = () => {
             setUser(userProfile);
             setActiveTab('home');
             hasLoadedInitialUser = true;
+            // Sincronizar favoritos desde Supabase para este usuario
+            favoritesService.syncFromSupabase();
             const tasksToday = await supabaseDataService.getTasksForDate(new Date());
             setPendingAlerts(tasksToday.filter(t => !t.log).length);
           } else if (isMounted && !userProfile) {
@@ -108,6 +113,8 @@ const App: React.FC = () => {
         }
       } else if (event === 'SIGNED_OUT' && isMounted) {
         localStorage.removeItem('google_provider_token');
+        // Limpiar caché local de favoritos al cerrar sesión
+        favoritesService.clearLocalCache();
         setUser(null);
         setActiveTab('home');
         hasLoadedInitialUser = false;
@@ -136,6 +143,8 @@ const App: React.FC = () => {
     if (loggedUser) {
       setUser(loggedUser);
       setActiveTab('home');
+      // Sincronizar favoritos desde Supabase
+      favoritesService.syncFromSupabase();
     } else {
       alert('Credenciales incorrectas.');
     }

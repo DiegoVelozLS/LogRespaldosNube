@@ -1279,5 +1279,136 @@ export const supabaseDataService = {
       console.error('Error fetching vault audit logs:', error);
       return [];
     }
-  }
+  },
+
+  // ==================== FAVORITES ====================
+
+  /**
+   * Obtiene todos los favoritos del usuario autenticado desde Supabase.
+   * Los devuelve ordenados por posición ascendente.
+   */
+  getUserFavorites: async (): Promise<any[]> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data, error } = await supabase
+        .from('favorites')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('position', { ascending: true });
+
+      if (error) throw error;
+
+      return (data || []).map((row: any) => ({
+        id: row.item_id,
+        type: row.type as 'document' | 'folder',
+        name: row.name,
+        categoryId: row.category_id,
+        category: row.category_name,
+        description: row.description,
+        fileUrl: row.file_url,
+        addedAt: new Date(row.created_at).getTime(),
+      }));
+    } catch (error) {
+      console.error('Error fetching user favorites:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Agrega un ítem a favoritos del usuario en Supabase.
+   * Si ya existe (upsert), no duplica.
+   * La posición se asigna al final de la lista actual.
+   */
+  addUserFavorite: async (favorite: {
+    id: string;
+    type: 'document' | 'folder';
+    name: string;
+    categoryId?: string;
+    category?: string;
+    description?: string;
+    fileUrl?: string;
+  }): Promise<boolean> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      // Calcular la próxima posición
+      const { count } = await supabase
+        .from('favorites')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      const nextPosition = count ?? 0;
+
+      const { error } = await supabase
+        .from('favorites')
+        .upsert({
+          user_id: user.id,
+          item_id: favorite.id,
+          type: favorite.type,
+          name: favorite.name,
+          category_id: favorite.categoryId ?? null,
+          category_name: favorite.category ?? null,
+          description: favorite.description ?? null,
+          file_url: favorite.fileUrl ?? null,
+          position: nextPosition,
+        }, { onConflict: 'user_id,item_id' });
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error adding user favorite:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Elimina un ítem de favoritos del usuario en Supabase.
+   */
+  removeUserFavorite: async (itemId: string): Promise<boolean> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      const { error } = await supabase
+        .from('favorites')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('item_id', itemId);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error removing user favorite:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Guarda el orden completo de favoritos actualizando la columna `position`
+   * de cada ítem. Se llama tras un reordenamiento por drag & drop.
+   */
+  saveUserFavoritesOrder: async (orderedIds: string[]): Promise<boolean> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      // Actualizar cada posición de forma paralela
+      const updates = orderedIds.map((itemId, index) =>
+        supabase
+          .from('favorites')
+          .update({ position: index })
+          .eq('user_id', user.id)
+          .eq('item_id', itemId)
+      );
+
+      await Promise.all(updates);
+      return true;
+    } catch (error) {
+      console.error('Error saving favorites order:', error);
+      return false;
+    }
+  },
 };

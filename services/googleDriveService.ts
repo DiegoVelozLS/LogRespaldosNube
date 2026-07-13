@@ -46,6 +46,7 @@ export interface GoogleFile {
     name: string;
     mimeType: string;
     size?: string;
+    createdTime: string;
     modifiedTime: string;
     description?: string;
     webViewLink?: string;
@@ -83,7 +84,7 @@ export const googleDriveService = {
             // Fetch con paginación automática
             do {
                 const query = `'${normalizedFolderId}' in parents and trashed = false`;
-                const fields = 'files(id, name, mimeType, size, modifiedTime, description, webViewLink, parents, shortcutDetails),nextPageToken';
+                const fields = 'files(id, name, mimeType, size, createdTime, modifiedTime, description, webViewLink, parents, shortcutDetails),nextPageToken';
                 
                 // Agregamos pageSize=1000 y pageToken para paginación
                 const pageToken = nextPageToken ? `&pageToken=${nextPageToken}` : '';
@@ -244,7 +245,7 @@ export const googleDriveService = {
                         description: file.description || '',
                         fileType: extension,
                         fileSize: googleDriveService.formatBytes(parseInt(file.size || '0')),
-                        createdAt: file.modifiedTime,
+                        createdAt: file.createdTime,
                         fileUrl: file.webViewLink || '#',
                         parentFolderId: file.parents?.[0] || categoryId,
                     });
@@ -297,7 +298,7 @@ export const googleDriveService = {
                 description: file.description || '',
                 fileType: extension,
                 fileSize: googleDriveService.formatBytes(parseInt(file.size || '0')),
-                createdAt: file.modifiedTime,
+                createdAt: file.createdTime,
                 fileUrl: file.webViewLink || '#',
             };
         });
