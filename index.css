@@ -29,3 +29,9 @@ body {
         scrollbar-width: none;
     }
 }
+
+/* Ocultar el icono de "revelar contraseña" nativo de navegadores (Edge/IE) */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+    display: none;
+}
