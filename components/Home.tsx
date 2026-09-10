@@ -3,7 +3,6 @@ import { User, Announcement, AnnouncementCategory, AnnouncementPriority, Employe
 import { announcementService } from '../services/announcementService';
 import { supabaseDataService } from '../services/supabaseDataService';
 import { googleDriveService } from '../services/googleDriveService';
-import { FavoritesPanel } from './FavoritesPanel';
 
 interface HomeProps {
   user: User;
@@ -211,7 +210,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
       id: `document-${document.id}`,
       type: 'document' as const,
       title: document.name,
-      description: document.description || `Documento compartido en ${document.category}`,
+      description: document.description || `Nuevo documento en ${document.category}`,
       createdAt: document.createdAt,
       categoryLabel: document.category,
       owner: 'Documentación',
@@ -503,11 +502,6 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
               </button>
             </div>
           </div>
-
-          {/* Panel de Favoritos */}
-          <FavoritesPanel 
-            onNavigateToFolder={(folderId, folderName) => onNavigate('documents', { categoryId: folderId, categoryName: folderName })}
-          />
 
           {/* Cumpleaños del mes */}
           <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200">

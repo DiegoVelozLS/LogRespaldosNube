@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Document, DocumentCategory } from '../types';
 import { googleDriveService } from '../services/googleDriveService';
 import { supabaseDataService } from '../services/supabaseDataService';
-import { FavoriteStar } from './FavoriteStar';
-import { favoritesService } from '../utils/favoritesService';
 
 // Iconos SVG minimalistas
 const FolderIcon = () => (
@@ -48,7 +46,6 @@ const DocumentRepository: React.FC<DocumentRepositoryProps> = ({ initialCategory
   const [invalidApiKey, setInvalidApiKey] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [highlightedDocumentId, setHighlightedDocumentId] = useState<string | null>(null);
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const normalizedCategoryId = initialCategoryId && initialCategoryId !== 'root' ? initialCategoryId : null;
@@ -58,23 +55,6 @@ const DocumentRepository: React.FC<DocumentRepositoryProps> = ({ initialCategory
     setRootSearchTerm('');
     setHighlightedDocumentId(initialDocumentId || null);
   }, [initialCategoryId, initialCategoryName, initialDocumentId]);
-
-  // Cargar favoritos al montar
-  useEffect(() => {
-    const loadFavorites = () => {
-      const favs = favoritesService.getFavorites();
-      setFavorites(new Set(favs.map(f => f.id)));
-    };
-
-    loadFavorites();
-
-    // Escuchar cambios en favoritos desde otros componentes
-    const unsubscribe = favoritesService.onFavoritesChange((favs) => {
-      setFavorites(new Set(favs.map(f => f.id)));
-    });
-
-    return unsubscribe;
-  }, []);
 
   useEffect(() => {
     if (!highlightedDocumentId) return;
@@ -229,53 +209,6 @@ const DocumentRepository: React.FC<DocumentRepositoryProps> = ({ initialCategory
     return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  // Funciones de favoritos
-  const handleToggleFavoriteDocument = async (e: React.MouseEvent, doc: Document) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const newFavState = await favoritesService.toggleFavorite({
-      id: doc.id,
-      type: 'document',
-      name: doc.name,
-      categoryId: doc.categoryId,
-      category: doc.category,
-      description: doc.description,
-      fileUrl: doc.fileUrl,
-    });
-
-    setFavorites(prev => {
-      const updated = new Set(prev);
-      if (newFavState) {
-        updated.add(doc.id);
-      } else {
-        updated.delete(doc.id);
-      }
-      return updated;
-    });
-  };
-
-  const handleToggleFavoriteFolder = async (e: React.MouseEvent, folder: DocumentCategory) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const newFavState = await favoritesService.toggleFavorite({
-      id: folder.id,
-      type: 'folder',
-      name: folder.name,
-      description: folder.description,
-    });
-
-    setFavorites(prev => {
-      const updated = new Set(prev);
-      if (newFavState) {
-        updated.add(folder.id);
-      } else {
-        updated.delete(folder.id);
-      }
-      return updated;
-    });
-  };
 
   // ========== VISTA DE CARPETAS (sin categoría seleccionada) ==========
   if (!selectedCategory) {
@@ -355,15 +288,6 @@ const DocumentRepository: React.FC<DocumentRepositoryProps> = ({ initialCategory
                     className="group relative bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all duration-300 overflow-hidden text-left"
                   >
                     <div className={`absolute top-0 left-0 bottom-0 w-1 ${colors.accent} opacity-0 group-hover:opacity-100 transition-opacity`} />
-                    
-                    {/* Botón de Favorito en esquina superior derecha */}
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <FavoriteStar
-                        isFavorite={favorites.has(category.id)}
-                        onClick={(e) => handleToggleFavoriteFolder(e, category)}
-                      />
-                    </div>
-
                     <div className="p-5">
                       <div className="p-3 bg-slate-50 rounded-lg text-slate-400 group-hover:text-slate-600 transition-colors inline-block mb-4">
                         <FolderIcon />
@@ -417,17 +341,8 @@ const DocumentRepository: React.FC<DocumentRepositoryProps> = ({ initialCategory
                       href={doc.fileUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="group relative flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
                     >
-                      {/* Botón de Favorito */}
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <FavoriteStar
-                          isFavorite={favorites.has(doc.id)}
-                          onClick={(e) => handleToggleFavoriteDocument(e, doc)}
-                          className="w-4 h-4"
-                        />
-                      </div>
-
                       <div className="h-9 w-9 rounded-lg bg-slate-100 flex items-center justify-center text-base shrink-0">
                         {getFileIcon(doc.fileType)}
                       </div>
@@ -582,16 +497,8 @@ const DocumentRepository: React.FC<DocumentRepositoryProps> = ({ initialCategory
                     setCurrentCategoryName(category.name);
                     setSearchTerm(''); // Limpiar búsqueda al entrar a subcarpeta
                   }}
-                  className="group relative flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-sm transition-all text-left"
+                  className="group flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-sm transition-all text-left"
                 >
-                  {/* Botón de Favorito en esquina superior derecha */}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <FavoriteStar
-                      isFavorite={favorites.has(category.id)}
-                      onClick={(e) => handleToggleFavoriteFolder(e, category)}
-                    />
-                  </div>
-
                   <div className="p-2 bg-slate-50 rounded-lg text-slate-400 group-hover:text-blue-600 transition-colors">
                     <FolderIcon />
                   </div>
@@ -614,16 +521,8 @@ const DocumentRepository: React.FC<DocumentRepositoryProps> = ({ initialCategory
                   href={doc.fileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`group relative rounded-xl border p-4 hover:border-blue-300 hover:shadow-md transition-all duration-300 flex flex-col justify-between text-left ${highlightedDocumentId === doc.id ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200' : 'bg-white border-slate-200'}`}
+                  className={`group rounded-xl border p-4 hover:border-blue-300 hover:shadow-md transition-all duration-300 flex flex-col justify-between text-left ${highlightedDocumentId === doc.id ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200' : 'bg-white border-slate-200'}`}
                 >
-                  {/* Botón de Favorito en esquina superior derecha */}
-                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <FavoriteStar
-                      isFavorite={favorites.has(doc.id)}
-                      onClick={(e) => handleToggleFavoriteDocument(e, doc)}
-                    />
-                  </div>
-
                   <div className="flex gap-4 items-start">
                     <div className="p-3 bg-slate-50 rounded-lg text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors shrink-0">
                       <span className="text-xl">{getFileIcon(doc.fileType)}</span>

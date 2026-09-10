@@ -1,9 +1,7 @@
-// Sistema de favoritos con Supabase como fuente de verdad y localStorage como caché local.
-// Máximo 50 favoritos por usuario.
+// Sistema de favoritos usando localStorage
+// Máximo 50 favoritos por usuario
 
-import { supabaseDataService } from '../services/supabaseDataService';
-
-export interface Favorite {
+interface Favorite {
   id: string;
   type: 'document' | 'folder';
   name: string;
@@ -37,60 +35,29 @@ export const favoritesService = {
       const customEvent = event as CustomEvent;
       callback(customEvent.detail.favorites);
     };
-
+    
     window.addEventListener(FAVORITES_CHANGE_EVENT, handler);
-
+    
     // Retorna función para desuscribirse
     return () => window.removeEventListener(FAVORITES_CHANGE_EVENT, handler);
   },
 
   /**
-   * Lee el caché local (localStorage)
+   * Obtiene todos los favoritos del usuario
    */
   getFavorites(): Favorite[] {
     if (typeof window === 'undefined') return [];
-
+    
     try {
       const stored = window.localStorage.getItem(FAVORITES_KEY);
       if (!stored) return [];
-
+      
       const favorites = JSON.parse(stored) as Favorite[];
       return Array.isArray(favorites) ? favorites : [];
     } catch (error) {
-      console.warn('Error reading favorites from localStorage:', error);
+      console.warn('Error reading favorites:', error);
       return [];
     }
-  },
-
-  /**
-   * Escribe el caché local (localStorage) sin emitir evento
-   */
-  _writeLocalCache(favorites: Favorite[]): void {
-    try {
-      window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
-    } catch (error) {
-      console.warn('Error writing favorites to localStorage:', error);
-    }
-  },
-
-  /**
-   * Carga favoritos desde Supabase y actualiza el caché local.
-   * Si no hay sesión activa, usa el caché local.
-   * Llamar al inicio de la app o al hacer login.
-   */
-  async syncFromSupabase(): Promise<Favorite[]> {
-    try {
-      const remoteFavorites = await supabaseDataService.getUserFavorites();
-      if (remoteFavorites.length >= 0) {
-        favoritesService._writeLocalCache(remoteFavorites);
-        favoritesService.emitChange();
-        console.log('✅ Favoritos sincronizados desde Supabase:', remoteFavorites.length);
-        return remoteFavorites;
-      }
-    } catch (error) {
-      console.warn('No se pudo sincronizar favoritos desde Supabase, usando caché local:', error);
-    }
-    return favoritesService.getFavorites();
   },
 
   /**
@@ -102,9 +69,9 @@ export const favoritesService = {
   },
 
   /**
-   * Agrega un item a favoritos (localStorage + Supabase)
+   * Agrega un item a favoritos
    */
-  async addFavorite(favorite: Omit<Favorite, 'addedAt'>): Promise<boolean> {
+  addFavorite(favorite: Omit<Favorite, 'addedAt'>): boolean {
     try {
       const favorites = favoritesService.getFavorites();
 
@@ -124,16 +91,9 @@ export const favoritesService = {
         addedAt: Date.now(),
       };
 
-      // 1. Actualizar caché local inmediatamente (UX optimista)
-      const updated = [...favorites, newFavorite];
-      favoritesService._writeLocalCache(updated);
+      favorites.push(newFavorite);
+      window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
       favoritesService.emitChange();
-
-      // 2. Persistir en Supabase en segundo plano
-      supabaseDataService.addUserFavorite(favorite).catch(err =>
-        console.error('Error persistiendo favorito en Supabase:', err)
-      );
-
       console.log('✅ Agregado a favoritos:', favorite.name);
       return true;
     } catch (error) {
@@ -143,9 +103,9 @@ export const favoritesService = {
   },
 
   /**
-   * Elimina un item de favoritos (localStorage + Supabase)
+   * Elimina un item de favoritos
    */
-  async removeFavorite(id: string): Promise<boolean> {
+  removeFavorite(id: string): boolean {
     try {
       const favorites = favoritesService.getFavorites();
       const filtered = favorites.filter(fav => fav.id !== id);
@@ -154,15 +114,8 @@ export const favoritesService = {
         return false; // No estaba en favoritos
       }
 
-      // 1. Actualizar caché local inmediatamente
-      favoritesService._writeLocalCache(filtered);
+      window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(filtered));
       favoritesService.emitChange();
-
-      // 2. Eliminar en Supabase en segundo plano
-      supabaseDataService.removeUserFavorite(id).catch(err =>
-        console.error('Error eliminando favorito en Supabase:', err)
-      );
-
       console.log('❌ Eliminado de favoritos:', id);
       return true;
     } catch (error) {
@@ -174,42 +127,21 @@ export const favoritesService = {
   /**
    * Toggle: agrega o quita de favoritos
    */
-  async toggleFavorite(favorite: Omit<Favorite, 'addedAt'>): Promise<boolean> {
+  toggleFavorite(favorite: Omit<Favorite, 'addedAt'>): boolean {
     if (favoritesService.isFavorite(favorite.id)) {
-      await favoritesService.removeFavorite(favorite.id);
-      return false;
+      return favoritesService.removeFavorite(favorite.id);
     } else {
       return favoritesService.addFavorite(favorite);
     }
   },
 
   /**
-   * Guarda la lista completa de favoritos (útil para reordenamiento manual por drag & drop).
-   * Actualiza el caché local y persiste el nuevo orden en Supabase.
+   * Limpia todos los favoritos
    */
-  saveFavorites(favorites: Favorite[]): void {
-    try {
-      favoritesService._writeLocalCache(favorites);
-      favoritesService.emitChange();
-
-      // Persistir el nuevo orden en Supabase
-      const orderedIds = favorites.map(f => f.id);
-      supabaseDataService.saveUserFavoritesOrder(orderedIds).catch(err =>
-        console.error('Error guardando orden de favoritos en Supabase:', err)
-      );
-    } catch (error) {
-      console.error('Error saving favorites list:', error);
-    }
-  },
-
-  /**
-   * Limpia todos los favoritos del caché local (no toca Supabase).
-   * Usar solo para logout/reset local.
-   */
-  clearLocalCache(): void {
+  clearAllFavorites(): void {
     window.localStorage.removeItem(FAVORITES_KEY);
     favoritesService.emitChange();
-    console.log('🗑️ Caché local de favoritos eliminado');
+    console.log('🗑️ Todos los favoritos eliminados');
   },
 
   /**

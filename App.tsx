@@ -4,7 +4,6 @@ import { User, UserRole, ROLE_LABELS } from './types';
 import { APP_VERSION } from './constants';
 import { supabaseDataService } from './services/supabaseDataService';
 import { supabase } from './services/supabaseClient';
-import { favoritesService } from './utils/favoritesService';
 import { DashboardIcon, CheckIcon, AdminIcon, AlertIcon, ClockIcon, UserCircleIcon } from './components/Icons';
 import Home from './components/Home';
 import Announcements from './components/Announcements';
@@ -17,8 +16,9 @@ import AccountProfile from './components/AccountProfile';
 import MonthlyReport from './components/MonthlyReport';
 import ClientDirectory from './components/ClientDirectory';
 import PasswordManager from './components/PasswordManager';
+import VpnManagement from './components/VpnManagement';
 
-type TabType = 'home' | 'announcements' | 'documents' | 'employees' | 'backups' | 'register' | 'admin' | 'stats' | 'profile' | 'reports' | 'clients' | 'password-manager';
+type TabType = 'home' | 'announcements' | 'documents' | 'employees' | 'backups' | 'register' | 'admin' | 'stats' | 'profile' | 'reports' | 'clients' | 'password-manager' | 'vpn';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -58,8 +58,6 @@ const App: React.FC = () => {
           }
           setActiveTab('home');
           hasLoadedInitialUser = true;
-          // Sincronizar favoritos desde Supabase en background
-          favoritesService.syncFromSupabase();
           const tasksToday = await supabaseDataService.getTasksForDate(new Date());
           setPendingAlerts(tasksToday.filter(t => !t.log).length);
         }
@@ -94,8 +92,6 @@ const App: React.FC = () => {
             setUser(userProfile);
             setActiveTab('home');
             hasLoadedInitialUser = true;
-            // Sincronizar favoritos desde Supabase para este usuario
-            favoritesService.syncFromSupabase();
             const tasksToday = await supabaseDataService.getTasksForDate(new Date());
             setPendingAlerts(tasksToday.filter(t => !t.log).length);
           } else if (isMounted && !userProfile) {
@@ -113,8 +109,6 @@ const App: React.FC = () => {
         }
       } else if (event === 'SIGNED_OUT' && isMounted) {
         localStorage.removeItem('google_provider_token');
-        // Limpiar caché local de favoritos al cerrar sesión
-        favoritesService.clearLocalCache();
         setUser(null);
         setActiveTab('home');
         hasLoadedInitialUser = false;
@@ -143,8 +137,6 @@ const App: React.FC = () => {
     if (loggedUser) {
       setUser(loggedUser);
       setActiveTab('home');
-      // Sincronizar favoritos desde Supabase
-      favoritesService.syncFromSupabase();
     } else {
       alert('Credenciales incorrectas.');
     }
@@ -247,6 +239,8 @@ const App: React.FC = () => {
   const canViewBackups = isAdmin || isTech;
   // Todos los roles pueden ver el gestor (las restricciones son internas a cada bóveda)
   const canViewPasswordManager = isAdmin || isTech || isSoporte;
+  // Gestión de VPN disponible para los mismos roles que el gestor de claves
+  const canViewVpn = isAdmin || isTech || isSoporte;
   // Solo ADMIN puede ver administración
   const canViewAdmin = isAdmin;
 
@@ -333,6 +327,15 @@ const App: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
                 <span className="font-medium">Gestor de Claves</span>
+            </button>
+          )}
+
+          {canViewVpn && (
+            <button onClick={() => handleNavigate('vpn')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'vpn' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c2.485 0 4.5-4.03 4.5-9s-2.015-9-4.5-9m0 18c-2.485 0-4.5-4.03-4.5-9s2.015-9 4.5-9m-9 9a9 9 0 019-9" />
+              </svg>
+              <span className="font-medium">Gestión VPN</span>
             </button>
           )}
 
@@ -429,6 +432,7 @@ const App: React.FC = () => {
           {activeTab === 'profile' && <AccountProfile user={user} />}
           {activeTab === 'clients' && <ClientDirectory user={user} />}
           {activeTab === 'password-manager' && <PasswordManager user={user} />}
+          {activeTab === 'vpn' && <VpnManagement user={user} />}
           {activeTab === 'reports' && <MonthlyReport user={user} />}
         </div>
       </main>
