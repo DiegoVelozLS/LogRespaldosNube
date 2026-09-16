@@ -4,8 +4,9 @@ import {
   vpnService,
   VpnCompany,
   VpnPeer,
+  VpnTunnel,
   GeneratedPeerResult,
-  buildServerPeerConfig,
+  buildConfigFileName,
 } from '../services/vpnService';
 
 interface VpnManagementProps {
@@ -55,6 +56,24 @@ const TrashIcon = () => (
   </svg>
 );
 
+const BuildingIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+  </svg>
+);
+
+const UsersIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+  </svg>
+);
+
+const CheckCircleIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
 const EditIcon = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -86,12 +105,50 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
   const [newPeerResult, setNewPeerResult] = useState<GeneratedPeerResult | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const isAdminOrTech = user?.role === UserRole.ADMIN || user?.role === UserRole.TECH;
+  // Subpáginas por túnel
+  const [tunnels, setTunnels] = useState<VpnTunnel[]>([]);
+  const [activeTunnelId, setActiveTunnelId] = useState<string>('');
+  const [isTunnelModalOpen, setIsTunnelModalOpen] = useState(false);
+  const [editingTunnel, setEditingTunnel] = useState<VpnTunnel | null>(null);
 
-  // Cargar empresas al montar el componente
+  const isAdmin = user?.role === UserRole.ADMIN;
+  // Administradores y técnicos pueden eliminar empresas y equipos
+  const canDelete = isAdmin || user?.role === UserRole.TECH;
+  // Los parámetros del servidor (endpoint, clave pública, prefijo) son solo del administrador
+  const canManageTunnels = isAdmin;
+
+  // Túnel de la pestaña activa y túnel al que pertenece la empresa abierta
+  const activeTunnel = tunnels.find(t => t.id === activeTunnelId) || tunnels[0] || null;
+  const selectedTunnel = selectedCompany
+    ? tunnels.find(t => t.id === selectedCompany.tunnelId) || activeTunnel
+    : activeTunnel;
+  const isRadminTunnel = selectedTunnel?.kind === 'radmin';
+
+  // Cargar túneles y empresas al montar el componente
   useEffect(() => {
-    loadCompanies();
+    loadAll();
   }, []);
+
+  const loadAll = async () => {
+    try {
+      setLoading(true);
+      setErrorMsg(null);
+      const [tunnelList, companyList] = await Promise.all([
+        vpnService.getTunnels(),
+        vpnService.getCompanies(),
+      ]);
+      setTunnels(tunnelList);
+      setActiveTunnelId(prev => {
+        if (prev && tunnelList.some(t => t.id === prev)) return prev;
+        return tunnelList[0]?.id || '';
+      });
+      setCompanies(companyList);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error al cargar la información de VPN');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadCompanies = async () => {
     try {
@@ -139,10 +196,16 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
     const manualNumStr = formData.get('manualNumber') as string;
     const manualCompanyNumber = manualNumStr ? parseInt(manualNumStr, 10) : undefined;
 
+    if (!activeTunnel) {
+      alert('No hay un túnel seleccionado.');
+      return;
+    }
+
     try {
       setActionLoading(true);
       setErrorMsg(null);
       await vpnService.createCompany({
+        tunnel: activeTunnel,
         name,
         groupName,
         status,
@@ -195,21 +258,29 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
     e.preventDefault();
     if (!selectedCompany) return;
 
+    if (!selectedTunnel) {
+      alert('No se pudo determinar el túnel de esta empresa.');
+      return;
+    }
+
     const formData = new FormData(e.currentTarget);
     const deviceName = formData.get('deviceName') as string;
     const userName = formData.get('userName') as string;
     const manualPcStr = formData.get('manualPcNumber') as string;
     const manualPcNumber = manualPcStr ? parseInt(manualPcStr, 10) : undefined;
+    const notes = formData.get('notes') as string;
 
     try {
       setActionLoading(true);
       setErrorMsg(null);
       const result = await vpnService.createPeer({
+        tunnel: selectedTunnel,
         companyId: selectedCompany.id,
         companyNumber: selectedCompany.companyNumber,
         deviceName,
         userName,
         manualPcNumber: manualPcNumber && manualPcNumber > 0 ? manualPcNumber : undefined,
+        notes: notes || undefined,
       });
 
       setNewPeerResult(result);
@@ -278,12 +349,8 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
     companyNumber: number,
     pcNumber?: number
   ) => {
-    const compStr = String(companyNumber).padStart(2, '0');
-    // Nomenclatura requerida: Lsoft-VPN-[01, 02, 03... 05...]
-    // Si la empresa tiene más de un equipo (pcNumber > 1), se añade sufijo para no sobreescribir
-    const fileName = pcNumber && pcNumber > 1
-      ? `Lsoft-VPN-${compStr}-${String(pcNumber).padStart(2, '0')}.conf`
-      : `Lsoft-VPN-${compStr}.conf`;
+    if (!selectedTunnel) return;
+    const fileName = buildConfigFileName(selectedTunnel, companyNumber, pcNumber);
 
     const blob = new Blob([configText], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -294,6 +361,66 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handleSaveTunnel = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const kind = formData.get('kind') as 'wireguard' | 'radmin';
+    const portStr = formData.get('listenPort') as string;
+
+    const payload = {
+      name: formData.get('name') as string,
+      kind,
+      endpointHost: (formData.get('endpointHost') as string) || '',
+      listenPort: portStr ? parseInt(portStr, 10) : null,
+      serverPublicKey: (formData.get('serverPublicKey') as string) || '',
+      dns: (formData.get('dns') as string) || '1.1.1.1',
+      clientAllowedIps: (formData.get('clientAllowedIps') as string) || '',
+      addressPrefix: (formData.get('addressPrefix') as string) || '',
+      addressCidr: parseInt((formData.get('addressCidr') as string) || '16', 10),
+      persistentKeepalive: parseInt((formData.get('persistentKeepalive') as string) || '25', 10),
+      filePrefix: (formData.get('filePrefix') as string) || 'Lsoft-VPN',
+      status: formData.get('status') as 'Activo' | 'Inactivo' | 'Mantenimiento',
+    };
+
+    try {
+      setActionLoading(true);
+      if (editingTunnel && editingTunnel.id) {
+        await vpnService.updateTunnel(editingTunnel.id, payload);
+      } else {
+        const created = await vpnService.createTunnel(payload);
+        setActiveTunnelId(created.id);
+      }
+      setIsTunnelModalOpen(false);
+      setEditingTunnel(null);
+      await loadAll();
+    } catch (err: any) {
+      alert(`Error al guardar el túnel: ${err.message || 'Error inesperado'}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteTunnel = async (tunnel: VpnTunnel) => {
+    const companiesInTunnel = companies.filter(c => c.tunnelId === tunnel.id).length;
+    if (companiesInTunnel > 0) {
+      alert(`No puedes eliminar "${tunnel.name}" porque tiene ${companiesInTunnel} empresa(s) asignada(s). Muévelas o elimínalas primero.`);
+      return;
+    }
+    if (!window.confirm(`¿Eliminar el túnel "${tunnel.name}"?`)) return;
+
+    try {
+      setActionLoading(true);
+      await vpnService.deleteTunnel(tunnel.id);
+      setIsTunnelModalOpen(false);
+      setEditingTunnel(null);
+      await loadAll();
+    } catch (err: any) {
+      alert(`Error al eliminar el túnel: ${err.message || 'Error inesperado'}`);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // --- Renderers ---
@@ -312,24 +439,52 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
 
   // VISTA LISTA DE EMPRESAS
   if (view === 'list') {
-    const filteredCompanies = companies.filter(c =>
+    // Empresas del túnel activo (subpágina)
+    const tunnelCompanies = companies.filter(c =>
+      activeTunnel ? c.tunnelId === activeTunnel.id : true
+    );
+
+    const filteredCompanies = tunnelCompanies.filter(c =>
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.groupName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.vpnNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.vpnRange.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // Calcular el siguiente número de empresa sugerido
-    const nextSuggestedNumber = companies.length > 0 
-      ? Math.max(...companies.map(c => c.companyNumber)) + 1 
+    // Siguiente número de empresa sugerido dentro del túnel activo
+    const nextSuggestedNumber = tunnelCompanies.length > 0
+      ? Math.max(...tunnelCompanies.map(c => c.companyNumber)) + 1
       : 1;
+
+    // Subtotales del túnel activo y totales generales
+    const tunnelPcs = tunnelCompanies.reduce((acc, c) => acc + c.pcCount, 0);
+    const tunnelActive = tunnelCompanies.filter(c => c.status === 'Activo').length;
+    const globalPcs = companies.reduce((acc, c) => acc + c.pcCount, 0);
+    const filteredPcs = filteredCompanies.reduce((acc, c) => acc + c.pcCount, 0);
+
+    const isRadminActive = activeTunnel?.kind === 'radmin';
+
+    // Conteos por túnel para las pestañas
+    const countsByTunnel = (tunnelId: string) => {
+      const list = companies.filter(c => c.tunnelId === tunnelId);
+      return {
+        companies: list.length,
+        pcs: list.reduce((acc, c) => acc + c.pcCount, 0),
+      };
+    };
 
     return (
       <div className="space-y-6 animate-fadeIn">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-slate-800">Gestión VPN WireGuard</h2>
-            <p className="text-slate-500 mt-1">Direccionamiento por túneles: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs text-slate-700">10.0.[Empresa].[PC]</code></p>
+            <h2 className="text-3xl font-bold text-slate-800">Gestión VPN</h2>
+            <p className="text-slate-500 mt-1">
+              {isRadminActive ? (
+                <>Acceso remoto vía <strong className="text-slate-700">Radmin</strong> (ficha informativa, sin túnel WireGuard)</>
+              ) : (
+                <>Direccionamiento: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs text-slate-700">{activeTunnel?.addressPrefix || '10.0'}.[Empresa].[PC]</code></>
+              )}
+            </p>
           </div>
           <button
             onClick={() => setIsNewCompanyModalOpen(true)}
@@ -340,12 +495,132 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
           </button>
         </div>
 
+        {/* Subpáginas: una pestaña por túnel */}
+        <div className="flex overflow-x-auto gap-2 pb-1 scrollbar-thin scrollbar-thumb-slate-300">
+          {tunnels.map(t => {
+            const counts = countsByTunnel(t.id);
+            const isActive = activeTunnel?.id === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => { setActiveTunnelId(t.id); setSearchTerm(''); }}
+                className={`px-5 py-3 rounded-xl font-medium transition whitespace-nowrap flex items-center gap-3 border ${
+                  isActive
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <span className="text-lg">{t.kind === 'radmin' ? '🖥️' : '🔐'}</span>
+                <span className="text-left">
+                  <span className="block font-bold text-sm">{t.name}</span>
+                  <span className={`block text-[11px] ${isActive ? 'text-blue-100' : 'text-slate-400'}`}>
+                    {counts.companies} empresa(s) • {counts.pcs} PC(s)
+                    {canManageTunnels && t.kind !== 'radmin' && t.listenPort ? ` • :${t.listenPort}` : ''}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+
+          {canManageTunnels && (
+            <button
+              onClick={() => { setEditingTunnel(null); setIsTunnelModalOpen(true); }}
+              className="px-4 py-3 rounded-xl font-bold text-sm transition whitespace-nowrap flex items-center gap-2 bg-white text-slate-500 border border-dashed border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+              title="Agregar un nuevo túnel"
+            >
+              <PlusIcon />
+              Nuevo Túnel
+            </button>
+          )}
+        </div>
+
         {errorMsg && (
           <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-center justify-between">
             <span>{errorMsg}</span>
             <button onClick={() => setErrorMsg(null)} className="text-red-500 font-bold hover:underline">Cerrar</button>
           </div>
         )}
+
+        {/* Ficha del túnel activo: los parámetros del servidor solo los ve el administrador */}
+        {activeTunnel && canManageTunnels && (
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+              <div>
+                <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">Túnel</p>
+                <p className="font-bold text-slate-800">{activeTunnel.name}</p>
+              </div>
+              {activeTunnel.kind === 'radmin' ? (
+                <div>
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">Tipo</p>
+                  <p className="font-medium text-slate-700">Radmin (sin configuración WireGuard)</p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">Endpoint</p>
+                    <p className="font-mono text-sm text-slate-700">{activeTunnel.endpointHost}:{activeTunnel.listenPort}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">Prefijo IP</p>
+                    <p className="font-mono text-sm text-blue-700 font-bold">{activeTunnel.addressPrefix}.X.Y</p>
+                  </div>
+                  <div className="max-w-xs">
+                    <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">Clave Pública Servidor</p>
+                    <p className="font-mono text-xs text-slate-500 truncate" title={activeTunnel.serverPublicKey}>
+                      {activeTunnel.serverPublicKey}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {canManageTunnels && activeTunnel.id && (
+              <button
+                onClick={() => { setEditingTunnel(activeTunnel); setIsTunnelModalOpen(true); }}
+                className="text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-2 rounded-lg font-bold border border-blue-200 transition flex items-center gap-1.5 self-start"
+              >
+                <EditIcon />
+                Editar Túnel
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Totales del túnel activo */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+            <span className="p-3 bg-blue-50 text-blue-600 rounded-xl border border-blue-100">
+              <BuildingIcon />
+            </span>
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">Empresas en este túnel</p>
+              <p className="text-2xl font-bold text-slate-800 leading-tight">{tunnelCompanies.length}</p>
+              <p className="text-[11px] text-slate-400">{companies.length} en total</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+            <span className="p-3 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100">
+              <UsersIcon />
+            </span>
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">Total Usuarios (Nº PCs)</p>
+              <p className="text-2xl font-bold text-slate-800 leading-tight">{tunnelPcs}</p>
+              <p className="text-[11px] text-slate-400">{globalPcs} en todos los túneles</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+            <span className="p-3 bg-green-50 text-green-600 rounded-xl border border-green-100">
+              <CheckCircleIcon />
+            </span>
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">Empresas Activas</p>
+              <p className="text-2xl font-bold text-slate-800 leading-tight">{tunnelActive}</p>
+              <p className="text-[11px] text-slate-400">en este túnel</p>
+            </div>
+          </div>
+        </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-3">
@@ -362,7 +637,7 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
               />
             </div>
             <div className="text-xs text-slate-500 font-medium">
-              Total Empresas: <strong className="text-slate-700">{companies.length}</strong>
+              Mostrando <strong className="text-slate-700">{filteredCompanies.length}</strong> empresa(s) • <strong className="text-slate-700">{filteredPcs}</strong> PC(s)
             </div>
           </div>
 
@@ -372,8 +647,8 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                 <tr>
                   <th className="px-6 py-4">Empresa</th>
                   <th className="px-6 py-4">Grupo Empresa</th>
-                  <th className="px-6 py-4">Nº VPN (X)</th>
-                  <th className="px-6 py-4">Rango Subred</th>
+                  <th className="px-6 py-4">Identificador (X)</th>
+                  <th className="px-6 py-4">{isRadminActive ? 'Acceso' : 'Rango Subred'}</th>
                   <th className="px-6 py-4 text-center">Nº PCs</th>
                   <th className="px-6 py-4">Estado</th>
                 </tr>
@@ -420,7 +695,9 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                 {!loading && filteredCompanies.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-6 py-8 text-center text-slate-500 font-medium">
-                      No se encontraron resultados.
+                      {tunnelCompanies.length === 0
+                        ? `Todavía no hay empresas en ${activeTunnel?.name || 'este túnel'}.`
+                        : 'No se encontraron resultados.'}
                     </td>
                   </tr>
                 )}
@@ -436,7 +713,12 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
               <div className="flex justify-between items-center p-6 border-b border-slate-200">
                 <div>
                   <h2 className="text-xl font-bold text-slate-800">Registrar Nueva Empresa</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Asignará el rango de IP <code className="text-blue-600 font-mono">10.0.X.0/24</code></p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    En <strong className="text-blue-600">{activeTunnel?.name}</strong>
+                    {!isRadminActive && activeTunnel && (
+                      <> • Rango <code className="text-blue-600 font-mono">{activeTunnel.addressPrefix}.X.0/24</code></>
+                    )}
+                  </p>
                 </div>
                 <button
                   onClick={() => setIsNewCompanyModalOpen(false)}
@@ -513,6 +795,202 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
             </div>
           </div>
         )}
+
+        {/* Modal Crear / Editar Túnel */}
+        {isTunnelModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center p-6 border-b border-slate-200">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800">
+                    {editingTunnel ? 'Editar Túnel' : 'Nuevo Túnel'}
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Estos datos se usan para generar las configuraciones de cliente y servidor.
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setIsTunnelModalOpen(false); setEditingTunnel(null); }}
+                  className="text-slate-400 hover:text-slate-600 transition"
+                  disabled={actionLoading}
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveTunnel} className="p-6 space-y-4 overflow-y-auto">
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Nombre del Túnel *</label>
+                    <input
+                      name="name"
+                      type="text"
+                      required
+                      defaultValue={editingTunnel?.name || ''}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="Ej. Túnel Principal"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Tipo</label>
+                    <select
+                      name="kind"
+                      defaultValue={editingTunnel?.kind || 'wireguard'}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm"
+                    >
+                      <option value="wireguard">WireGuard</option>
+                      <option value="radmin">Radmin (solo ficha)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Endpoint (IP o dominio)</label>
+                    <input
+                      name="endpointHost"
+                      type="text"
+                      defaultValue={editingTunnel?.endpointHost || ''}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                      placeholder="20.242.117.143"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Puerto</label>
+                    <input
+                      name="listenPort"
+                      type="number"
+                      defaultValue={editingTunnel?.listenPort ?? ''}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                      placeholder="51820"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Clave Pública del Servidor</label>
+                  <input
+                    name="serverPublicKey"
+                    type="text"
+                    defaultValue={editingTunnel?.serverPublicKey || ''}
+                    className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-mono"
+                    placeholder="Clave pública en base64"
+                  />
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">AllowedIPs del cliente</label>
+                    <input
+                      name="clientAllowedIps"
+                      type="text"
+                      defaultValue={editingTunnel?.clientAllowedIps || ''}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                      placeholder="10.0.0.1/32"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">DNS</label>
+                    <input
+                      name="dns"
+                      type="text"
+                      defaultValue={editingTunnel?.dns || '1.1.1.1'}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Prefijo de IP</label>
+                    <input
+                      name="addressPrefix"
+                      type="text"
+                      defaultValue={editingTunnel?.addressPrefix || ''}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                      placeholder="10.0"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">Genera <span className="font-mono">prefijo.[Empresa].[PC]</span></p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Máscara (CIDR)</label>
+                    <input
+                      name="addressCidr"
+                      type="number"
+                      min="8"
+                      max="32"
+                      defaultValue={editingTunnel?.addressCidr ?? 16}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Keepalive</label>
+                    <input
+                      name="persistentKeepalive"
+                      type="number"
+                      min="0"
+                      defaultValue={editingTunnel?.persistentKeepalive ?? 25}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Prefijo de archivo .conf</label>
+                    <input
+                      name="filePrefix"
+                      type="text"
+                      defaultValue={editingTunnel?.filePrefix || 'Lsoft-VPN'}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">Las descargas se llamarán <span className="font-mono">prefijo-01.conf</span></p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Estado</label>
+                    <select
+                      name="status"
+                      defaultValue={editingTunnel?.status || 'Activo'}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm"
+                    >
+                      <option value="Activo">Activo</option>
+                      <option value="Inactivo">Inactivo</option>
+                      <option value="Mantenimiento">Mantenimiento</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex gap-3">
+                  {editingTunnel && isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteTunnel(editingTunnel)}
+                      disabled={actionLoading}
+                      className="px-4 py-2.5 bg-white border-2 border-red-200 text-red-600 rounded-xl font-bold hover:bg-red-50 transition text-sm"
+                    >
+                      Eliminar
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setIsTunnelModalOpen(false); setEditingTunnel(null); }}
+                    disabled={actionLoading}
+                    className="flex-1 px-4 py-2.5 bg-white border-2 border-slate-300 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition text-sm"
+                  >
+                    {actionLoading ? 'Guardando...' : 'Guardar Túnel'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -541,7 +1019,8 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                 {renderStatusBadge(selectedCompany.status)}
               </div>
               <p className="text-slate-500 text-sm mt-0.5">
-                Número de Empresa X: <strong className="text-blue-600 font-mono">{selectedCompany.companyNumber}</strong> • Rango: <strong className="font-mono text-slate-700">{selectedCompany.vpnRange}</strong>
+                <strong className="text-slate-700">{selectedTunnel?.name}</strong> • Empresa X: <strong className="text-blue-600 font-mono">{selectedCompany.companyNumber}</strong>
+                {!isRadminTunnel && <> • Rango: <strong className="font-mono text-slate-700">{selectedCompany.vpnRange}</strong></>}
               </p>
             </div>
           </div>
@@ -556,7 +1035,7 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
               Editar Empresa
             </button>
 
-            {isAdminOrTech && (
+            {canDelete && (
               <button
                 onClick={handleDeleteCompany}
                 disabled={actionLoading}
@@ -581,12 +1060,14 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
               <p className="font-bold text-blue-600 font-mono">{selectedCompany.vpnNumber}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1 font-bold">Rango VPN</p>
+              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1 font-bold">{isRadminTunnel ? 'Acceso' : 'Rango VPN'}</p>
               <p className="font-mono text-sm text-slate-700 bg-slate-100 px-2 py-0.5 rounded inline-block">{selectedCompany.vpnRange}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1 font-bold">Esquema IP</p>
-              <p className="font-mono text-sm text-blue-700 font-bold">10.0.{selectedCompany.companyNumber}.[PC]</p>
+              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1 font-bold">{isRadminTunnel ? 'Tipo' : 'Esquema IP'}</p>
+              <p className="font-mono text-sm text-blue-700 font-bold">
+                {isRadminTunnel ? 'Radmin' : `${selectedTunnel?.addressPrefix}.${selectedCompany.companyNumber}.[PC]`}
+              </p>
             </div>
             <div>
               <p className="text-xs text-slate-500 uppercase tracking-wider mb-1 font-bold">Total Equipos</p>
@@ -607,16 +1088,22 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                     </svg>
                   </span>
                   <h3 className="text-lg font-bold text-blue-900">
-                    Túnel Creado Exitosamente: {newPeerResult.peer.deviceName} ({newPeerResult.peer.userName})
+                    {isRadminTunnel ? 'Equipo Registrado' : 'Túnel Creado Exitosamente'}: {newPeerResult.peer.deviceName} ({newPeerResult.peer.userName})
                   </h3>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-                  <span className="text-slate-700">IP Asignada:</span>
-                  <span className="font-mono font-bold text-blue-800 bg-white px-2.5 py-0.5 rounded-md border border-blue-200 shadow-xs text-base">
-                    {newPeerResult.peer.ip}
-                  </span>
+                  {!isRadminTunnel && (
+                    <>
+                      <span className="text-slate-700">IP Asignada:</span>
+                      <span className="font-mono font-bold text-blue-800 bg-white px-2.5 py-0.5 rounded-md border border-blue-200 shadow-xs text-base">
+                        {newPeerResult.peer.ip}
+                      </span>
+                    </>
+                  )}
                   <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded border border-emerald-200">
-                    ✓ La configuración quedó guardada. Puedes volver a consultarla o descargar el .conf en cualquier momento haciendo clic sobre el equipo en la tabla.
+                    {isRadminTunnel
+                      ? '✓ Ficha guardada. Puedes consultarla haciendo clic sobre el equipo en la tabla.'
+                      : '✓ La configuración quedó guardada. Puedes volver a consultarla o descargar el .conf en cualquier momento haciendo clic sobre el equipo en la tabla.'}
                   </span>
                 </div>
               </div>
@@ -629,7 +1116,7 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
               </button>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6 mt-4">
+            <div className={`grid md:grid-cols-2 gap-6 mt-4 ${isRadminTunnel ? 'hidden' : ''}`}>
               {/* Bloque Servidor (Copiar y Pegar en wg0.conf) */}
               <div className="space-y-2 bg-white/70 p-4 rounded-xl border border-blue-200">
                 <div className="flex justify-between items-center">
@@ -656,10 +1143,9 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
               {/* Bloque Cliente (.conf para PC/Laptop/Móvil) */}
               <div className="space-y-2 bg-white/70 p-4 rounded-xl border border-blue-200">
                 {(() => {
-                  const compPad = String(selectedCompany.companyNumber).padStart(2, '0');
-                  const dlName = (newPeerResult.peer.pcNumber > 1)
-                    ? `Lsoft-VPN-${compPad}-${String(newPeerResult.peer.pcNumber).padStart(2, '0')}.conf`
-                    : `Lsoft-VPN-${compPad}.conf`;
+                  const dlName = selectedTunnel
+                    ? buildConfigFileName(selectedTunnel, selectedCompany.companyNumber, newPeerResult.peer.pcNumber)
+                    : 'cliente.conf';
 
                   return (
                     <>
@@ -708,13 +1194,15 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-xl font-bold text-slate-800">
-                      Configuración WireGuard: {selectedPeerForConfig.deviceName}
+                      {isRadminTunnel ? 'Ficha del Equipo' : 'Configuración WireGuard'}: {selectedPeerForConfig.deviceName}
                     </h3>
                     {renderStatusBadge(selectedPeerForConfig.status)}
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
                     Usuario: <strong className="text-slate-700">{selectedPeerForConfig.userName}</strong> • 
-                    IP Asignada: <strong className="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{selectedPeerForConfig.ip}</strong> • 
+                    {!isRadminTunnel && (
+                      <> IP Asignada: <strong className="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{selectedPeerForConfig.ip}</strong> • </>
+                    )}
                     Empresa: <strong className="text-slate-700">{selectedCompany.name}</strong> (X={selectedCompany.companyNumber})
                   </p>
                 </div>
@@ -727,22 +1215,54 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
               </div>
 
               <div className="p-6 overflow-y-auto space-y-6">
-                {(() => {
+                {isRadminTunnel && (
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <p className="text-xs text-slate-500 uppercase tracking-wider font-bold mb-1">Equipo</p>
+                      <p className="font-bold text-slate-800">{selectedPeerForConfig.deviceName}</p>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <p className="text-xs text-slate-500 uppercase tracking-wider font-bold mb-1">Usuario</p>
+                      <p className="font-medium text-slate-700">{selectedPeerForConfig.userName}</p>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <p className="text-xs text-slate-500 uppercase tracking-wider font-bold mb-1">Nº de Equipo</p>
+                      <p className="font-mono font-bold text-slate-700">{selectedPeerForConfig.pcNumber}</p>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <p className="text-xs text-slate-500 uppercase tracking-wider font-bold mb-1">Registrado</p>
+                      <p className="font-medium text-slate-700">{selectedPeerForConfig.createdAt}</p>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 sm:col-span-2">
+                      <p className="text-xs text-slate-500 uppercase tracking-wider font-bold mb-1">Notas</p>
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                        {selectedPeerForConfig.notes || <span className="text-slate-400 italic">Sin notas</span>}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {!isRadminTunnel && (() => {
+                  if (!selectedTunnel) return null;
+
                   const clientCfg = vpnService.getPeerClientConfig(
+                    selectedTunnel,
                     selectedPeerForConfig,
                     selectedCompany.companyNumber
                   );
                   const serverCfg = vpnService.getPeerServerConfig(
+                    selectedTunnel,
                     selectedPeerForConfig,
                     selectedCompany.companyNumber
                   );
                   const hasPrivateKey = Boolean(
                     selectedPeerForConfig.privateKey && selectedPeerForConfig.privateKey.trim().length > 0
                   );
-                  const compPad = String(selectedCompany.companyNumber).padStart(2, '0');
-                  const dlName = (selectedPeerForConfig.pcNumber > 1)
-                    ? `Lsoft-VPN-${compPad}-${String(selectedPeerForConfig.pcNumber).padStart(2, '0')}.conf`
-                    : `Lsoft-VPN-${compPad}.conf`;
+                  const dlName = buildConfigFileName(
+                    selectedTunnel,
+                    selectedCompany.companyNumber,
+                    selectedPeerForConfig.pcNumber
+                  );
 
                   return (
                     <div className="grid md:grid-cols-2 gap-6">
@@ -829,15 +1349,21 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-50">
             <div>
-              <h3 className="text-lg font-bold text-slate-800">Equipos Registrados (Peers)</h3>
-              <p className="text-xs text-slate-500">Haz clic sobre cualquier equipo para ver o descargar su configuración completa.</p>
+              <h3 className="text-lg font-bold text-slate-800">
+                {isRadminTunnel ? 'Equipos Registrados' : 'Equipos Registrados (Peers)'}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {isRadminTunnel
+                  ? 'Haz clic sobre cualquier equipo para ver su ficha.'
+                  : 'Haz clic sobre cualquier equipo para ver o descargar su configuración completa.'}
+              </p>
             </div>
             <button
               onClick={() => setIsNewPeerModalOpen(true)}
               className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm"
             >
               <PlusIcon />
-              Crear Nuevo Peer
+              {isRadminTunnel ? 'Registrar Equipo' : 'Crear Nuevo Peer'}
             </button>
           </div>
 
@@ -845,10 +1371,12 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
             <table className="w-full text-left text-sm text-slate-700">
               <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-4">IP (10.0.X.Y)</th>
+                  <th className="px-6 py-4">
+                    {isRadminTunnel ? 'Nº Equipo' : `IP (${selectedTunnel?.addressPrefix || '10.0'}.X.Y)`}
+                  </th>
                   <th className="px-6 py-4">Equipo</th>
                   <th className="px-6 py-4">Usuario</th>
-                  <th className="px-6 py-4">Clave Pública (WireGuard)</th>
+                  <th className="px-6 py-4">{isRadminTunnel ? 'Notas' : 'Clave Pública (WireGuard)'}</th>
                   <th className="px-6 py-4">Fecha</th>
                   <th className="px-6 py-4">Estado</th>
                   <th className="px-6 py-4 text-center">Acciones</th>
@@ -860,19 +1388,25 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                     key={peer.id}
                     onClick={() => setSelectedPeerForConfig(peer)}
                     className="hover:bg-blue-50/50 transition duration-150 cursor-pointer group"
-                    title="Haz clic para ver o descargar la configuración"
+                    title={isRadminTunnel ? 'Haz clic para ver la ficha' : 'Haz clic para ver o descargar la configuración'}
                   >
                     <td className="px-6 py-4 font-mono font-bold text-blue-600">
                       <span className="bg-blue-50 border border-blue-100 rounded px-2 py-0.5 text-xs group-hover:border-blue-300 transition">
-                        {peer.ip}
+                        {isRadminTunnel ? `PC ${peer.pcNumber}` : peer.ip}
                       </span>
                     </td>
                     <td className="px-6 py-4 font-bold text-slate-800 group-hover:text-blue-600 transition">{peer.deviceName}</td>
                     <td className="px-6 py-4 text-slate-600 font-medium">{peer.userName}</td>
                     <td className="px-6 py-4 font-mono text-xs text-slate-500">
-                      <span className="truncate max-w-[160px] inline-block bg-slate-50 border border-slate-200 rounded px-2 py-0.5" title={peer.publicKey}>
-                        {peer.publicKey}
-                      </span>
+                      {isRadminTunnel ? (
+                        <span className="font-sans truncate max-w-[200px] inline-block" title={peer.notes}>
+                          {peer.notes || <span className="text-slate-400 italic">Sin notas</span>}
+                        </span>
+                      ) : (
+                        <span className="truncate max-w-[160px] inline-block bg-slate-50 border border-slate-200 rounded px-2 py-0.5" title={peer.publicKey}>
+                          {peer.publicKey}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-slate-500 text-xs">{peer.createdAt}</td>
                     <td className="px-6 py-4">{renderStatusBadge(peer.status)}</td>
@@ -881,11 +1415,11 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                         <button
                           onClick={() => setSelectedPeerForConfig(peer)}
                           className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                          title="Ver y descargar configuración"
+                          title={isRadminTunnel ? 'Ver ficha del equipo' : 'Ver y descargar configuración'}
                         >
                           <ServerIcon />
                         </button>
-                        {isAdminOrTech && (
+                        {canDelete && (
                           <button
                             onClick={() => handleDeletePeer(peer)}
                             className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
@@ -901,7 +1435,9 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                 {peers.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-6 py-10 text-center text-slate-400 font-medium">
-                      No hay equipos registrados en esta VPN. Haz clic en "Crear Nuevo Peer" para generar el primero.
+                      {isRadminTunnel
+                        ? 'No hay equipos registrados. Haz clic en "Registrar Equipo" para agregar el primero.'
+                        : 'No hay equipos registrados en esta VPN. Haz clic en "Crear Nuevo Peer" para generar el primero.'}
                     </td>
                   </tr>
                 )}
@@ -931,11 +1467,18 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
               </div>
 
               <form onSubmit={handleCreatePeer} className="p-6 space-y-4">
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800 space-y-1">
-                  <p className="font-bold">✨ Generación Automática:</p>
-                  <p>• La <strong>clave privada y pública</strong> WireGuard se generarán de forma segura.</p>
-                  <p>• La IP asignada seguirá el esquema <strong>10.0.{selectedCompany.companyNumber}.Y</strong>.</p>
-                </div>
+                {isRadminTunnel ? (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 space-y-1">
+                    <p className="font-bold">🖥️ Acceso vía Radmin</p>
+                    <p>Este túnel no genera claves ni direcciones WireGuard. Solo se guarda la ficha del equipo.</p>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800 space-y-1">
+                    <p className="font-bold">✨ Generación Automática:</p>
+                    <p>• La <strong>clave privada y pública</strong> WireGuard se generarán de forma segura.</p>
+                    <p>• La IP asignada seguirá el esquema <strong>{selectedTunnel?.addressPrefix}.{selectedCompany.companyNumber}.Y</strong>.</p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">Nombre del Equipo *</label>
@@ -961,19 +1504,35 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">
-                    Número de PC (Y)
+                    {isRadminTunnel ? 'Número de Equipo' : 'Número de PC (Y)'}
                   </label>
                   <input
                     name="manualPcNumber"
                     type="number"
                     min="1"
-                    placeholder={`Sugerido automático: ${nextSuggestedPc} (10.0.${selectedCompany.companyNumber}.${nextSuggestedPc})`}
+                    placeholder={
+                      isRadminTunnel
+                        ? `Sugerido automático: ${nextSuggestedPc}`
+                        : `Sugerido automático: ${nextSuggestedPc} (${selectedTunnel?.addressPrefix}.${selectedCompany.companyNumber}.${nextSuggestedPc})`
+                    }
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
                   />
                   <p className="text-xs text-slate-500 mt-1">
                     Déjalo vacío para auto-asignar {nextSuggestedPc}. O ingresa un número si este dispositivo ya tiene una IP fija en producción.
                   </p>
                 </div>
+
+                {isRadminTunnel && (
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Notas (Opcional)</label>
+                    <textarea
+                      name="notes"
+                      rows={3}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="Ej. ID de Radmin, contacto, horario de soporte"
+                    />
+                  </div>
+                )}
 
                 <div className="pt-4 flex gap-3">
                   <button
@@ -989,7 +1548,9 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                     disabled={actionLoading}
                     className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition text-sm flex items-center justify-center gap-2"
                   >
-                    {actionLoading ? 'Generando Túnel...' : 'Generar Túnel y Accesos'}
+                    {actionLoading
+                      ? 'Guardando...'
+                      : isRadminTunnel ? 'Registrar Equipo' : 'Generar Túnel y Accesos'}
                   </button>
                 </div>
               </form>
