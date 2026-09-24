@@ -2,8 +2,17 @@ import { supabase } from './supabaseClient';
 
 export type TunnelKind = 'wireguard' | 'radmin';
 
+export interface VpnServer {
+  id: string;
+  name: string;
+  host: string;
+  sortOrder: number;
+  status: 'Activo' | 'Inactivo' | 'Mantenimiento';
+}
+
 export interface VpnTunnel {
   id: string;
+  serverId: string;
   name: string;
   kind: TunnelKind;
   endpointHost: string;
@@ -65,8 +74,17 @@ export const WG_SERVER_CONFIG = {
   PERSISTENT_KEEPALIVE: 25,
 };
 
+export const FALLBACK_SERVER: VpnServer = {
+  id: '',
+  name: 'Servidor 1',
+  host: '20.242.117.143',
+  sortOrder: 1,
+  status: 'Activo',
+};
+
 export const FALLBACK_TUNNEL: VpnTunnel = {
   id: '',
+  serverId: '',
   name: 'Túnel Principal',
   kind: 'wireguard',
   endpointHost: '20.242.117.143',
@@ -266,9 +284,20 @@ export function buildConfigFileName(
 // ================================================================
 // SERVICIO DE BASE DE DATOS (SUPABASE)
 // ================================================================
+function mapServer(s: any): VpnServer {
+  return {
+    id: s.id,
+    name: s.name,
+    host: s.host || '',
+    sortOrder: s.sort_order ?? 0,
+    status: s.status || 'Activo',
+  };
+}
+
 function mapTunnel(t: any): VpnTunnel {
   return {
     id: t.id,
+    serverId: t.server_id || '',
     name: t.name,
     kind: (t.kind || 'wireguard') as TunnelKind,
     endpointHost: t.endpoint_host || '',
@@ -286,6 +315,69 @@ function mapTunnel(t: any): VpnTunnel {
 }
 
 export const vpnService = {
+  /**
+   * Obtiene los servidores VPN. Si la tabla aún no existe,
+   * devuelve el servidor actual de respaldo para no romper la vista.
+   */
+  getServers: async (): Promise<VpnServer[]> => {
+    try {
+      const { data, error } = await (supabase as any)
+        .from('vpn_servers')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      if (!data || data.length === 0) return [FALLBACK_SERVER];
+
+      return data.map(mapServer);
+    } catch (error) {
+      console.warn('No se pudo leer vpn_servers, usando servidor de respaldo:', error);
+      return [FALLBACK_SERVER];
+    }
+  },
+
+  createServer: async (params: { name: string; host?: string; sortOrder?: number }): Promise<VpnServer> => {
+    const { data, error } = await (supabase as any)
+      .from('vpn_servers')
+      .insert({
+        name: params.name.trim(),
+        host: params.host?.trim() || null,
+        sort_order: params.sortOrder ?? 99,
+        status: 'Activo',
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return mapServer(data);
+  },
+
+  updateServer: async (id: string, params: { name?: string; host?: string }): Promise<VpnServer> => {
+    const payload: Record<string, any> = {};
+    if (params.name !== undefined) payload.name = params.name.trim();
+    if (params.host !== undefined) payload.host = params.host.trim() || null;
+
+    const { data, error } = await (supabase as any)
+      .from('vpn_servers')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return mapServer(data);
+  },
+
+  deleteServer: async (id: string): Promise<void> => {
+    const { error } = await (supabase as any)
+      .from('vpn_servers')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+  },
+
   /**
    * Obtiene los túneles configurados. Si la tabla aún no existe,
    * devuelve el túnel principal de respaldo para no romper la vista.
@@ -309,28 +401,40 @@ export const vpnService = {
   },
 
   createTunnel: async (params: Omit<VpnTunnel, 'id' | 'sortOrder'> & { sortOrder?: number }): Promise<VpnTunnel> => {
-    const { data, error } = await (supabase as any)
+    const row: Record<string, any> = {
+      server_id: params.serverId || null,
+      name: params.name.trim(),
+      kind: params.kind,
+      endpoint_host: params.endpointHost?.trim() || null,
+      listen_port: params.listenPort || null,
+      server_public_key: params.serverPublicKey?.trim() || null,
+      dns: params.dns?.trim() || '1.1.1.1',
+      client_allowed_ips: params.clientAllowedIps?.trim() || null,
+      address_prefix: params.addressPrefix?.trim() || null,
+      address_cidr: params.addressCidr || 16,
+      persistent_keepalive: params.persistentKeepalive || 25,
+      file_prefix: params.filePrefix?.trim() || 'Lsoft-VPN',
+      sort_order: params.sortOrder ?? 99,
+      status: params.status || 'Activo',
+    };
+
+    let result = await (supabase as any)
       .from('vpn_tunnels')
-      .insert({
-        name: params.name.trim(),
-        kind: params.kind,
-        endpoint_host: params.endpointHost?.trim() || null,
-        listen_port: params.listenPort || null,
-        server_public_key: params.serverPublicKey?.trim() || null,
-        dns: params.dns?.trim() || '1.1.1.1',
-        client_allowed_ips: params.clientAllowedIps?.trim() || null,
-        address_prefix: params.addressPrefix?.trim() || null,
-        address_cidr: params.addressCidr || 16,
-        persistent_keepalive: params.persistentKeepalive || 25,
-        file_prefix: params.filePrefix?.trim() || 'Lsoft-VPN',
-        sort_order: params.sortOrder ?? 99,
-        status: params.status || 'Activo',
-      })
+      .insert(row)
       .select()
       .single();
 
-    if (error) throw error;
-    return mapTunnel(data);
+    if (result.error?.code === 'PGRST204' && result.error.message?.includes('server_id')) {
+      delete row.server_id;
+      result = await (supabase as any)
+        .from('vpn_tunnels')
+        .insert(row)
+        .select()
+        .single();
+    }
+
+    if (result.error) throw result.error;
+    return mapTunnel(result.data);
   },
 
   updateTunnel: async (id: string, params: Partial<Omit<VpnTunnel, 'id'>>): Promise<VpnTunnel> => {
