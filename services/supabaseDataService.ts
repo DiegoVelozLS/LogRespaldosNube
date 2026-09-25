@@ -613,7 +613,7 @@ export const supabaseDataService = {
         userName: log.user ? `${log.user.name} ${log.user.last_name}` : 'Usuario eliminado',
         notes: log.notes || '',
         dateStr: log.date_str,
-        scheduleName: log.schedule?.name || 'Tarea eliminada'
+        scheduleName: log.schedule?.name || log.schedule_name || 'Tarea eliminada'
       }));
     } catch (error) {
       console.error('Get logs error:', error);
@@ -771,7 +771,7 @@ export const supabaseDataService = {
         userName: log.user ? `${log.user.name} ${log.user.last_name}` : 'Usuario eliminado',
         notes: log.notes || '',
         dateStr: log.date_str,
-        scheduleName: log.schedule?.name || 'Tarea eliminada'
+        scheduleName: log.schedule?.name || log.schedule_name || 'Tarea eliminada'
       }));
     } catch (error) {
       console.error('Get monthly report error:', error);

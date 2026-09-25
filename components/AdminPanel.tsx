@@ -35,7 +35,7 @@ const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({ isOpen, schedul
         <div className="p-6">
           <p className="text-slate-700 mb-2">¿Estás seguro de que deseas eliminar la programación:</p>
           <p className="font-bold text-slate-900 text-lg mb-4">"{scheduleName}"</p>
-          <p className="text-sm text-slate-500">Se eliminarán todos los datos relacionados con esta programación.</p>
+          <p className="text-sm text-slate-500">La programación deja de aparecer en el panel. Los registros ya hechos se conservan en el reporte.</p>
         </div>
 
         <div className="p-6 bg-slate-50 border-t border-slate-200 flex gap-3">

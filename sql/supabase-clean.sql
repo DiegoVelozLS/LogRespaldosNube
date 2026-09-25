@@ -62,7 +62,8 @@ CREATE TABLE public.clients (
 -- Tabla BACKUP_LOGS
 CREATE TABLE public.backup_logs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    schedule_id UUID REFERENCES public.backup_schedules(id) ON DELETE CASCADE,
+    schedule_id UUID REFERENCES public.backup_schedules(id) ON DELETE SET NULL,
+    schedule_name TEXT,
     user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
     status TEXT NOT NULL CHECK (status IN ('PENDING', 'COMPLETED', 'WARNING', 'FAILED')),
     notes TEXT,

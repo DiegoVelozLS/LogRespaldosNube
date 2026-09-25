@@ -18,8 +18,9 @@ import MonthlyReport from './components/MonthlyReport';
 import ClientDirectory from './components/ClientDirectory';
 import PasswordManager from './components/PasswordManager';
 import VpnManagement from './components/VpnManagement';
+import BackupFtpLogs from './components/BackupFtpLogs';
 
-type TabType = 'home' | 'announcements' | 'documents' | 'employees' | 'backups' | 'register' | 'admin' | 'stats' | 'profile' | 'reports' | 'clients' | 'password-manager' | 'vpn';
+type TabType = 'home' | 'announcements' | 'documents' | 'employees' | 'backups' | 'register' | 'admin' | 'stats' | 'profile' | 'reports' | 'clients' | 'password-manager' | 'vpn' | 'backup-logs';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -244,8 +245,9 @@ const App: React.FC = () => {
   const isTech = user.role === UserRole.TECH;
   const isSoporte = user.role === UserRole.SOPORTE;
   
-  // ADMIN y TECH pueden ver respaldos, SOPORTE no
+  // ADMIN y TECH pueden ver respaldos. SOPORTE solo ve los logs automáticos.
   const canViewBackups = isAdmin || isTech;
+  const canViewBackupLogs = isAdmin || isTech || isSoporte;
   // Todos los roles pueden ver el gestor (las restricciones son internas a cada bóveda)
   const canViewPasswordManager = isAdmin || isTech || isSoporte;
   // Gestión de VPN disponible para los mismos roles que el gestor de claves
@@ -358,30 +360,42 @@ const App: React.FC = () => {
           </button>
           )}
 
-          {/* Sección Sistema de Respaldos - Solo ADMIN y TECH */}
-          {canViewBackups && (
+          {(canViewBackups || canViewBackupLogs) && (
             <>
               <div className="pt-4 pb-2">
                 <p className="text-xs text-slate-500 uppercase tracking-wider px-4">Respaldos</p>
               </div>
 
-              <button onClick={() => handleNavigate('backups')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'backups' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-                <DashboardIcon />
-                <span className="font-medium">Panel Respaldos</span>
-                {pendingAlerts > 0 && <span className="ml-auto bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">{pendingAlerts}</span>}
-              </button>
+              {canViewBackups && (
+                <>
+                  <button onClick={() => handleNavigate('backups')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'backups' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                    <DashboardIcon />
+                    <span className="font-medium">Panel Respaldos</span>
+                    {pendingAlerts > 0 && <span className="ml-auto bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">{pendingAlerts}</span>}
+                  </button>
 
-              <button onClick={() => handleNavigate('register')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'register' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-                <ClockIcon />
-                <span className="font-medium">Registrar</span>
-              </button>
+                  <button onClick={() => handleNavigate('register')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'register' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                    <ClockIcon />
+                    <span className="font-medium">Registrar</span>
+                  </button>
 
-              <button onClick={() => handleNavigate('reports')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'reports' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span className="font-medium">Reportes</span>
-              </button>
+                  <button onClick={() => handleNavigate('reports')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'reports' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="font-medium">Reportes</span>
+                  </button>
+                </>
+              )}
+
+              {canViewBackupLogs && (
+                <button onClick={() => handleNavigate('backup-logs')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'backup-logs' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="font-medium">Logs de respaldos</span>
+                </button>
+              )}
             </>
           )}
 
@@ -443,6 +457,7 @@ const App: React.FC = () => {
           {activeTab === 'password-manager' && <PasswordManager user={user} />}
           {activeTab === 'vpn' && <VpnManagement user={user} />}
           {activeTab === 'reports' && <MonthlyReport user={user} />}
+          {activeTab === 'backup-logs' && canViewBackupLogs && <BackupFtpLogs />}
         </div>
       </main>
     </div>
