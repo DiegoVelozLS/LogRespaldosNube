@@ -201,12 +201,17 @@ export const announcementService = {
             if (error) {
                 console.error('Error detallado de la función:', error);
                 
-                let errorDetails = 'Error desconocido en la función.';
+                let errorDetails = error.message || 'Error desconocido en la función.';
                 
-                // Si el error es de Supabase Functions, a menudo el mensaje real 
-                // está en el cuerpo de la respuesta que podemos capturar así
-                if (error instanceof Error) {
-                    errorDetails = error.message;
+                // Si es un FunctionsHttpError, extraer detalles del cuerpo JSON
+                if (error && (error as any).context) {
+                    try {
+                        const body = await (error as any).context.json();
+                        if (body?.details) errorDetails = body.details;
+                        else if (body?.error) errorDetails = body.error;
+                    } catch (_) {
+                        // fallback a errorDetails
+                    }
                 }
 
                 return { 

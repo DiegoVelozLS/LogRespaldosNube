@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
     console.log(`Enviando a ${emails.length} destinatarios...`)
 
     const emailOptions: any = {
-      from: 'Intranet Listosoft <onboarding@resend.dev>',
+      from: 'Intranet Listosoft <avisos@lsoftapp.com>',
       to: emails[0],
       subject: subject,
       html: html,
