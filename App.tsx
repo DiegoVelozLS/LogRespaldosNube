@@ -255,14 +255,18 @@ const App: React.FC = () => {
   // Solo ADMIN puede ver administración
   const canViewAdmin = isAdmin;
 
-  const handleNavigate = (tab: string, options?: { categoryId?: string; categoryName?: string; documentId?: string }) => {
+  const handleNavigate = (tab: string, options?: { categoryId?: string; categoryName?: string; documentId?: string; announcementId?: string }) => {
     setActiveTab(tab as TabType);
     if (tab === 'documents') {
       setDocumentNavigation(options ?? null);
     } else {
       setDocumentNavigation(null);
     }
-    setSelectedAnnouncementId(undefined);
+    if (tab === 'announcements') {
+      setSelectedAnnouncementId(options?.announcementId);
+    } else {
+      setSelectedAnnouncementId(undefined);
+    }
     setIsMenuOpen(false);
   };
 

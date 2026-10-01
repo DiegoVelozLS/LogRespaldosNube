@@ -7,7 +7,7 @@ import { FavoritesPanel } from './FavoritesPanel';
 
 interface HomeProps {
   user: User;
-  onNavigate: (tab: string, options?: { categoryId?: string; categoryName?: string; documentId?: string }) => void;
+  onNavigate: (tab: string, options?: { categoryId?: string; categoryName?: string; documentId?: string; announcementId?: string }) => void;
 }
 
 // Iconos SVG profesionales
@@ -259,8 +259,8 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
       {/* Widgets de acceso rápido */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <button
-          onClick={() => onNavigate('documents')}
-          className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-300 transition text-left"
+          onClick={() => onNavigate('announcements')}
+          className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-300 transition text-left cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
@@ -449,12 +449,21 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
                       categoryName: item.categoryName || item.categoryLabel,
                       documentId: item.id.replace('document-', ''),
                     })}
-                    className="block w-full text-left"
+                    className="block w-full text-left cursor-pointer"
                   >
                     {content}
                   </button>
                 ) : (
-                  <div key={item.id}>{content}</div>
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onNavigate('announcements', {
+                      announcementId: item.id.replace('announcement-', ''),
+                    })}
+                    className="block w-full text-left cursor-pointer"
+                  >
+                    {content}
+                  </button>
                 );
               })
             )}
