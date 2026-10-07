@@ -211,3 +211,42 @@ export interface VaultAuditLog {
   action: string;
   createdAt: string;
 }
+
+export interface BackupFtpFile {
+  name: string;
+  path: string;
+  sizeBytes: number;
+  sizeFormatted: string;
+  modifiedAt: string;
+  isFolder: boolean;
+  isDirectory?: boolean;
+  server?: string;
+  fileType: string;
+}
+
+export interface BackupDownloadAuditRecord {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userRole: string;
+  filename: string;
+  filepath: string;
+  filesizeBytes: number;
+  serverName?: string;
+  downloadedAt: string;
+  ipAddress?: string;
+  status: 'completed' | 'failed' | 'in_progress';
+}
+
+export interface AuditSummaryStats {
+  todayDownloadBytes: number;
+  todayCount: number;
+  monthDownloadBytes: number;
+  monthCount: number;
+  monthUsedGbPercentage: number;
+  azureEstimatedCostUsd: number;
+  topUser?: { name: string; email: string; bytes: number };
+  topServer?: { name: string; bytes: number };
+  dailyTrend: Array<{ date: string; bytes: number; count: number }>;
+}

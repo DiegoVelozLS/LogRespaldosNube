@@ -4,6 +4,7 @@ import { BackupSchedule, BackupLog, BackupType, FrequencyType, UserRole, User, R
 import { supabaseDataService } from '../services/supabaseDataService';
 import { BACKUP_TYPE_ICONS, STATUS_COLORS } from '../constants';
 import VaultConfiguration from './VaultConfiguration';
+import BackupDownloadAudit from './BackupDownloadAudit';
 
 interface ConfirmDeleteModalProps {
   isOpen: boolean;
@@ -367,7 +368,7 @@ const ScheduleForm: React.FC<ScheduleFormProps> = ({ onSave, onCancel, editingSc
 
 interface AdminPanelProps {
   user: User;
-  initialTab?: 'schedules' | 'users' | 'vault-audit' | 'vault-config';
+  initialTab?: 'schedules' | 'users' | 'vault-audit' | 'vault-config' | 'download-audit';
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' }) => {
@@ -378,7 +379,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
   const [users, setUsers] = useState<User[]>([]);
   const [auditLogs, setAuditLogs] = useState<VaultAuditLog[]>([]);
   const [auditFilter, setAuditFilter] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'schedules' | 'users' | 'vault-audit' | 'vault-config'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'schedules' | 'users' | 'vault-audit' | 'vault-config' | 'download-audit'>(initialTab);
   const [loading, setLoading] = useState(true);
 
   // Forms states
@@ -578,17 +579,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
         </h2>
 
         {role === 'ADMIN' && (
-          <div className="flex p-1 bg-slate-200 rounded-xl gap-1">
+          <div className="flex p-1 bg-slate-200 rounded-xl gap-1 overflow-x-auto">
             {[
               { id: 'schedules', label: 'Programación' },
               { id: 'users', label: 'Usuarios' },
               { id: 'vault-audit', label: 'Auditoría Bóveda' },
               { id: 'vault-config', label: 'Config Bóvedas' },
+              { id: 'download-audit', label: 'Auditoría Descargas' },
             ].map((t) => (
               <button
                 key={t.id}
                 onClick={() => setActiveTab(t.id as any)}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === t.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${activeTab === t.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 {t.label}
               </button>
@@ -960,6 +962,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
       {activeTab === 'vault-config' && role === UserRole.ADMIN && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fadeIn">
           <VaultConfiguration users={users} />
+        </div>
+      )}
+      {activeTab === 'download-audit' && role === UserRole.ADMIN && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden animate-fadeIn">
+          <BackupDownloadAudit currentUser={user} />
         </div>
       )}
     </div>
