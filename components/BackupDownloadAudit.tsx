@@ -14,11 +14,14 @@ const BackupDownloadAudit: React.FC<BackupDownloadAuditProps> = ({ currentUser, 
   const [stats, setStats] = useState<AuditSummaryStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [userFilter, setUserFilter] = useState('');
   const [serverFilter, setServerFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [recordToDelete, setRecordToDelete] = useState<BackupDownloadAuditRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadAuditData = async () => {
     setLoading(true);
@@ -34,6 +37,22 @@ const BackupDownloadAudit: React.FC<BackupDownloadAuditProps> = ({ currentUser, 
       setError(err instanceof Error ? err.message : 'No se pudieron cargar los registros de auditoría.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!recordToDelete) return;
+    setIsDeleting(true);
+    try {
+      await backupDownloadAuditService.deleteAuditLog(recordToDelete.id);
+      setSuccessMessage(`Registro de "${recordToDelete.filename}" eliminado. El consumo de GBs fue recalculado.`);
+      setRecordToDelete(null);
+      await loadAuditData();
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al eliminar el registro.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -146,6 +165,18 @@ const BackupDownloadAudit: React.FC<BackupDownloadAuditProps> = ({ currentUser, 
         <div className="bg-red-50 border border-red-100 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between">
           <span>{error}</span>
           <button onClick={() => setError('')} className="text-red-400 hover:text-red-600 font-bold ml-2">✕</button>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 px-4 py-3 rounded-xl flex items-center justify-between animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <span className="text-sm font-medium">{successMessage}</span>
+          </div>
+          <button onClick={() => setSuccessMessage('')} className="text-emerald-500 hover:text-emerald-700 font-bold ml-2">✕</button>
         </div>
       )}
 
@@ -383,18 +414,19 @@ const BackupDownloadAudit: React.FC<BackupDownloadAuditProps> = ({ currentUser, 
                 <th className="px-4 py-3.5 font-semibold">Archivo Descargado</th>
                 <th className="px-4 py-3.5 font-semibold">Servidor</th>
                 <th className="px-4 py-3.5 font-semibold text-right">Tamaño</th>
+                <th className="px-4 py-3.5 font-semibold text-center w-20">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
                     Cargando historial de auditoría de descargas...
                   </td>
                 </tr>
               ) : filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
                     No se registraron descargas con los filtros aplicados.
                   </td>
                 </tr>
@@ -426,6 +458,17 @@ const BackupDownloadAudit: React.FC<BackupDownloadAuditProps> = ({ currentUser, 
                     <td className="px-4 py-3 text-right font-extrabold text-blue-700 whitespace-nowrap">
                       {formatBytes(log.filesizeBytes)}
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => setRecordToDelete(log)}
+                        title="Borrar registro de auditoría"
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -433,6 +476,74 @@ const BackupDownloadAudit: React.FC<BackupDownloadAuditProps> = ({ currentUser, 
           </table>
         </div>
       </div>
+
+      {/* Modal de Confirmación de Borrado */}
+      {recordToDelete && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-100 animate-scaleUp">
+            <div className="flex items-center gap-3 text-red-600 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Eliminar Registro de Auditoría</h3>
+                <p className="text-xs text-slate-500">Descontar descarga no realizada</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-3.5 rounded-xl text-xs space-y-2 mb-4 border border-slate-200/60">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Archivo:</span>
+                <span className="font-bold text-slate-800 truncate max-w-[200px]" title={recordToDelete.filename}>
+                  {recordToDelete.filename}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Usuario:</span>
+                <span className="font-bold text-slate-700">{recordToDelete.userName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tamaño:</span>
+                <span className="font-extrabold text-blue-700">{formatBytes(recordToDelete.filesizeBytes)}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 mb-5">
+              ¿Estás seguro de eliminar este registro? Los <span className="font-bold text-slate-800">{formatBytes(recordToDelete.filesizeBytes)}</span> serán descontados inmediatamente del consumo total acumulado de Azure.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setRecordToDelete(null)}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={confirmDelete}
+                className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition shadow-sm flex items-center gap-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Eliminando...
+                  </>
+                ) : (
+                  'Sí, eliminar registro'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

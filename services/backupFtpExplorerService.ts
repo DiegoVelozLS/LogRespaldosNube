@@ -51,44 +51,58 @@ export const backupFtpExplorerService = {
   },
 
   /**
-   * Descarga un archivo real desde el servidor FTP y registra la auditoría de consumo (GBs).
+   * Descarga un archivo real desde el servidor FTP y registra la auditoría de consumo (GBs) únicamente si la descarga fue exitosa.
    */
   async downloadFile(file: BackupFtpFile, currentUser: User): Promise<void> {
-    // 1. Registrar auditoría de descarga de GBs
-    await backupDownloadAuditService.recordDownload({
-      file: {
-        name: file.name,
-        path: file.path,
-        sizeBytes: file.sizeBytes,
-        server: 'FTP-Server',
-      },
-      user: currentUser,
-    });
-
-    // 2. Descargar el archivo
+    // 1. Descargar el archivo desde el servidor FTP
     const { data, error } = await supabase.functions.invoke('backup-ftp-logs', {
       body: { action: 'download', path: file.path, filename: file.name },
     });
 
     if (error) {
-      throw new Error(error.message || 'Error al descargar archivo desde el servidor FTP.');
+      let message = '';
+      try {
+        const context = (error as any).context;
+        if (context && typeof context.json === 'function') {
+          const payload = await context.json();
+          if (payload?.error) message = payload.error;
+        }
+      } catch {
+        // ignore
+      }
+      if (!message) message = error.message || 'Error al descargar archivo desde el servidor FTP.';
+      throw new Error(message);
     }
 
     if (data?.error) {
       throw new Error(data.error);
     }
 
+    if (!data?.base64 && !data?.content) {
+      throw new Error('El servidor FTP no devolvió contenido para este archivo.');
+    }
+
+    // 2. Disparar la descarga en el navegador
     if (data?.base64) {
       triggerBase64Download(data.base64, file.name, getMimeType(file.fileType));
-      return;
-    }
-
-    if (data?.content) {
+    } else if (data?.content) {
       triggerTextDownload(data.content, file.name, 'text/plain;charset=utf-8');
-      return;
     }
 
-    throw new Error('El servidor FTP no devolvió contenido para este archivo.');
+    // 3. Registrar auditoría de descarga de GBs SOLO si la descarga se completó con éxito
+    try {
+      await backupDownloadAuditService.recordDownload({
+        file: {
+          name: file.name,
+          path: file.path,
+          sizeBytes: file.sizeBytes,
+          server: 'FTP-Server',
+        },
+        user: currentUser,
+      });
+    } catch (auditErr) {
+      console.warn('No se pudo registrar la auditoría de descarga:', auditErr);
+    }
   },
 };
 

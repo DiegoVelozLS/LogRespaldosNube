@@ -184,6 +184,30 @@ export const backupDownloadAuditService = {
       dailyTrend,
     };
   },
+
+  /**
+   * Elimina un registro de auditoría específico (por ejemplo si la descarga falló o fue cancelada)
+   */
+  async deleteAuditLog(id: string): Promise<void> {
+    try {
+      // 1. Intentar eliminar de Supabase si no es local
+      if (!id.startsWith('local-')) {
+        const { error } = await supabase
+          .from('backup_download_audit')
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+          console.warn('Error al eliminar registro de Supabase:', error.message);
+        }
+      }
+    } catch (err) {
+      console.warn('Excepción al eliminar registro de Supabase:', err);
+    }
+
+    // 2. Eliminar del almacenamiento local fallback
+    deleteFromLocalStorageFallback(id);
+  },
 };
 
 function mapRowToRecord(row: any): BackupDownloadAuditRecord {
@@ -218,6 +242,16 @@ function saveToLocalStorageFallback(record: BackupDownloadAuditRecord) {
   }
 }
 
+function deleteFromLocalStorageFallback(id: string) {
+  try {
+    const list = getFromLocalStorageFallback();
+    const updated = list.filter((r) => r.id !== id);
+    localStorage.setItem(LOCAL_STORAGE_AUDIT_KEY, JSON.stringify(updated));
+  } catch (err) {
+    console.warn('Error al eliminar de localStorage:', err);
+  }
+}
+
 function getFromLocalStorageFallback(): BackupDownloadAuditRecord[] {
   try {
     const saved = localStorage.getItem(LOCAL_STORAGE_AUDIT_KEY);
@@ -227,3 +261,4 @@ function getFromLocalStorageFallback(): BackupDownloadAuditRecord[] {
     return [];
   }
 }
+
