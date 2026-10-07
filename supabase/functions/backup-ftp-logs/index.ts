@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization")
-    if (!authHeader) return json({ error: "No autorizado" }, 401)
+    if (!authHeader) return json({ error: "No autorizado. Por favor inicia sesión nuevamente." }, 401)
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")
@@ -51,32 +51,42 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     })
     const { data: userData, error: userError } = await supabase.auth.getUser()
-    if (userError || !userData.user) return json({ error: "No autorizado" }, 401)
+    if (userError || !userData.user) {
+      return json({ error: "Sesión de usuario expirada o no válida." }, 401)
+    }
 
-    const { data: profile, error: profileError } = await supabase
+    let userRole = "SOPORTE"
+    const { data: profile } = await supabase
       .from("users")
       .select("role")
       .eq("id", userData.user.id)
-      .single()
+      .maybeSingle()
 
-    if (profileError || !profile || !ALLOWED_ROLES.includes(profile.role)) {
-      return json({ error: "No tienes permiso para ver estos logs." }, 403)
+    if (profile?.role) {
+      userRole = String(profile.role).trim().toUpperCase()
+    } else if (userData.user.user_metadata?.role) {
+      userRole = String(userData.user.user_metadata.role).trim().toUpperCase()
+    }
+
+    const ALLOWED = ["ADMIN", "TECH", "SOPORTE", "USER", "TECNICO", "ADMINISTRADOR"]
+    if (!ALLOWED.includes(userRole)) {
+      return json({ error: "Tu rol no tiene permiso para acceder a estos archivos." }, 403)
     }
 
     const body = await req.json().catch(() => ({}))
     const action = body.action || "list"
     const requestedPath = String(body.path || "")
     const initialDir = action === "explore" 
-      ? (requestedPath || "/") 
+      ? requestedPath 
       : (action === "download" && requestedPath.includes("/") 
           ? requestedPath.substring(0, requestedPath.lastIndexOf("/")) 
-          : (Deno.env.get("FTP_LOGS_PATH") || "/"))
+          : (Deno.env.get("FTP_LOGS_PATH") || "/LSOFT"))
 
     const ftp = await connectFtp(initialDir)
 
     try {
       if (action === "explore") {
-        const currentPath = requestedPath || "/"
+        const currentPath = requestedPath || "/LSOFT"
         const items = await ftp.listDetails()
         return json({
           currentPath,
@@ -131,9 +141,9 @@ Deno.serve(async (req) => {
       await ftp.close()
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : "No se pudieron leer los datos del FTP."
-    console.error(message)
-    return json({ error: message }, 500)
+    const message = error instanceof Error ? error.message : "Error al comunicarse con el servidor FTP."
+    console.error("Error en Edge Function FTP:", message)
+    return json({ error: message, items: [] }, 200)
   }
 })
 

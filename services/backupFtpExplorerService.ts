@@ -20,15 +20,18 @@ export const backupFtpExplorerService = {
     });
 
     if (error) {
-      let message = error.message || 'Error al comunicarse con el servidor FTP.';
-      const context = (error as { context?: Response }).context;
-      if (context && typeof context.json === 'function') {
-        try {
+      let message = '';
+      try {
+        const context = (error as any).context;
+        if (context && typeof context.json === 'function') {
           const payload = await context.json();
           if (payload?.error) message = payload.error;
-        } catch {
-          // ignore
         }
+      } catch {
+        // ignore
+      }
+      if (!message) {
+        message = error.message || 'Error al comunicarse con el servidor FTP.';
       }
       throw new Error(message);
     }
