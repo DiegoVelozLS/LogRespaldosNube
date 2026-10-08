@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Expose-Headers": "Content-Disposition, Content-Length",
 }
 
 const LOG_NAME = /^Backup_.+_\d{8}\.log$/i
@@ -83,6 +84,7 @@ Deno.serve(async (req) => {
           : (Deno.env.get("FTP_LOGS_PATH") || "/LSOFT"))
 
     const ftp = await connectFtp(initialDir)
+    let shouldCloseFtp = true
 
     try {
       if (action === "explore") {
@@ -100,19 +102,22 @@ Deno.serve(async (req) => {
           return json({ error: "Ruta de archivo no especificada." }, 400)
         }
         const fileNameOnly = filePath.includes("/") ? filePath.split("/").pop()! : filePath
-        const bytes = await ftp.retrieve(fileNameOnly)
-        
-        let binary = ""
-        const len = bytes.byteLength
-        const chunkSize = 8192
-        for (let i = 0; i < len; i += chunkSize) {
-          binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, Math.min(i + chunkSize, len))))
+        const fileSize = await ftp.getSize(fileNameOnly)
+        const stream = await ftp.streamRetrieve(fileNameOnly)
+        shouldCloseFtp = false
+
+        const responseHeaders: Record<string, string> = {
+          ...corsHeaders,
+          "Content-Type": "application/octet-stream",
+          "Content-Disposition": `attachment; filename="${encodeURIComponent(fileNameOnly)}"`,
         }
-        const base64 = btoa(binary)
-        return json({
-          filename: fileNameOnly,
-          size: bytes.length,
-          base64,
+        if (fileSize !== null) {
+          responseHeaders["Content-Length"] = String(fileSize)
+        }
+
+        return new Response(stream, {
+          status: 200,
+          headers: responseHeaders,
         })
       }
 
@@ -138,7 +143,9 @@ Deno.serve(async (req) => {
       runs.sort((a, b) => (a.date === b.date ? b.startedAt.localeCompare(a.startedAt) : b.date.localeCompare(a.date)))
       return json({ runs })
     } finally {
-      await ftp.close()
+      if (shouldCloseFtp) {
+        await ftp.close()
+      }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error al comunicarse con el servidor FTP."
@@ -282,6 +289,63 @@ class FtpClient {
       // ignore
     }
     return ""
+  }
+
+  async getSize(filename: string): Promise<number | null> {
+    try {
+      const res = await this.command(`SIZE ${filename}`)
+      if (res.code === 213) {
+        const sizeNum = parseInt(res.message.replace(/^213\s*/, '').trim(), 10)
+        if (!isNaN(sizeNum) && sizeNum > 0) return sizeNum
+      }
+    } catch {
+      // ignore
+    }
+    return null
+  }
+
+  async streamRetrieve(filename: string): Promise<ReadableStream<Uint8Array>> {
+    await this.command("TYPE I")
+    const passive = await this.command("PASV")
+    const match = passive.message.match(/(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)/)
+    if (passive.code !== 227 || !match) throw new Error("El FTP no abrió el canal de datos.")
+    const dataPort = Number(match[5]) * 256 + Number(match[6])
+    const dataConn = await Deno.connect({ hostname: this.host, port: dataPort })
+
+    const started = await this.command(`RETR ${filename}`)
+    if (started.code !== 150 && started.code !== 125) {
+      try { dataConn.close() } catch {}
+      throw new Error(`No se pudo iniciar la descarga en el FTP (${started.code}).`)
+    }
+
+    const client = this
+    const buffer = new Uint8Array(65536) // 64 KB chunk size
+
+    return new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        try {
+          const n = await dataConn.read(buffer)
+          if (n === null) {
+            controller.close()
+            try { dataConn.close() } catch {}
+            try {
+              await client.readResponse()
+              await client.close()
+            } catch {}
+          } else {
+            controller.enqueue(buffer.slice(0, n))
+          }
+        } catch (err) {
+          controller.error(err)
+          try { dataConn.close() } catch {}
+          try { await client.close() } catch {}
+        }
+      },
+      async cancel() {
+        try { dataConn.close() } catch {}
+        try { await client.close() } catch {}
+      }
+    })
   }
 
   async retrieve(filename: string) {

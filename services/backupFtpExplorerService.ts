@@ -78,15 +78,15 @@ export const backupFtpExplorerService = {
       throw new Error(data.error);
     }
 
-    if (!data?.base64 && !data?.content) {
-      throw new Error('El servidor FTP no devolvió contenido para este archivo.');
-    }
-
     // 2. Disparar la descarga en el navegador
-    if (data?.base64) {
+    if (data instanceof Blob) {
+      triggerBlobDownload(data, file.name);
+    } else if (data?.base64) {
       triggerBase64Download(data.base64, file.name, getMimeType(file.fileType));
     } else if (data?.content) {
       triggerTextDownload(data.content, file.name, 'text/plain;charset=utf-8');
+    } else {
+      throw new Error('El servidor FTP no devolvió contenido para este archivo.');
     }
 
     // 3. Registrar auditoría de descarga de GBs SOLO si la descarga se completó con éxito
