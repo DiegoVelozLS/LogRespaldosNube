@@ -402,14 +402,15 @@ const App: React.FC = () => {
                 </button>
               )}
 
-              {canViewBackupLogs && (
+              {/* Módulo oculto temporalmente a petición del usuario (código preservado) */}
+              {/* {canViewBackupLogs && (
                 <button onClick={() => handleNavigate('ftp-explorer')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'ftp-explorer' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                   <span className="font-medium">Descarga FTP</span>
                 </button>
-              )}
+              )} */}
             </>
           )}
 
