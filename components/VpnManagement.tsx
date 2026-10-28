@@ -317,13 +317,21 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
   };
 
   const handleDeletePeer = async (peer: VpnPeer) => {
-    if (!window.confirm(`¿Estás seguro de eliminar el equipo "${peer.deviceName}" (${peer.ip})?`)) {
+    const isAuto = selectedTunnel?.autoSyncServer;
+    const promptMsg = isAuto
+      ? `¿Estás seguro de eliminar el equipo "${peer.deviceName}" (${peer.ip})?\n\nAl confirmar, se removerá en caliente de la memoria del Windows Server con wg.exe y se limpiará del archivo de configuración sin reiniciar el servicio ni desconectar a los otros clientes.`
+      : `¿Estás seguro de eliminar el equipo "${peer.deviceName}" (${peer.ip})?`;
+
+    if (!window.confirm(promptMsg)) {
       return;
     }
 
     try {
       setActionLoading(true);
-      await vpnService.deletePeer(peer.id);
+      const res = await vpnService.deletePeer(peer.id);
+      if (res?.action === 'pending_remove') {
+        alert(`Equipo "${peer.deviceName}" marcado para remoción en caliente en el Windows Server.`);
+      }
       if (selectedCompany) {
         const refreshed = await vpnService.getCompanyWithPeers(selectedCompany.id);
         if (refreshed) {
@@ -335,6 +343,41 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleRegenerateToken = async (peer: VpnPeer) => {
+    if (!window.confirm(`¿Deseas generar un nuevo Token de Activación para el equipo "${peer.deviceName}"? El token anterior quedará invalidado.`)) {
+      return;
+    }
+    try {
+      setActionLoading(true);
+      const newToken = await vpnService.regenerateProvisionToken(peer.id);
+      if (selectedPeerForConfig && selectedPeerForConfig.id === peer.id) {
+        setSelectedPeerForConfig({ ...selectedPeerForConfig, provisionToken: newToken, provisionedAt: undefined });
+      }
+      if (selectedCompany) {
+        const refreshed = await vpnService.getCompanyWithPeers(selectedCompany.id);
+        if (refreshed) setSelectedCompany(refreshed.company);
+      }
+      alert(`Nuevo Token de Activación generado: ${newToken}`);
+    } catch (err: any) {
+      alert(`Error al regenerar token: ${err.message || 'Error inesperado'}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const downloadBatchInstaller = (token: string, deviceName: string) => {
+    const content = vpnService.generateBatchInstallerContent(token, window.location.origin, deviceName);
+    const blob = new Blob([content], { type: 'application/x-bat;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Instalar-VPN-${deviceName}.bat`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleDeleteCompany = async () => {
@@ -399,6 +442,8 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
       addressCidr: parseInt((formData.get('addressCidr') as string) || '16', 10),
       persistentKeepalive: parseInt((formData.get('persistentKeepalive') as string) || '25', 10),
       filePrefix: (formData.get('filePrefix') as string) || 'Lsoft-VPN',
+      wgInterfaceName: (formData.get('wgInterfaceName') as string) || (formData.get('filePrefix') as string) || 'Lsoft-VPN',
+      autoSyncServer: formData.get('autoSyncServer') === 'on',
       status: formData.get('status') as 'Activo' | 'Inactivo' | 'Mantenimiento',
     };
 
@@ -516,6 +561,46 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
         return <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold border border-amber-200">Mantenimiento</span>;
       default:
         return <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-bold border border-slate-200">{status}</span>;
+    }
+  };
+
+  const renderSyncBadge = (syncStatus?: string, syncError?: string) => {
+    switch (syncStatus) {
+      case 'synced':
+        return (
+          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md text-[11px] font-bold inline-flex items-center gap-1" title="Inyectado y activo en el Windows Server">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            En Servidor
+          </span>
+        );
+      case 'pending':
+        return (
+          <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-md text-[11px] font-bold animate-pulse inline-flex items-center gap-1" title="El Agente del Windows Server lo inyectará en caliente en breve">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+            Sincronizando...
+          </span>
+        );
+      case 'pending_remove':
+        return (
+          <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-md text-[11px] font-bold inline-flex items-center gap-1" title="Removiendo de la memoria y archivo .conf en el servidor">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+            Removiendo...
+          </span>
+        );
+      case 'error':
+        return (
+          <span className="px-2 py-0.5 bg-red-100 text-red-800 border border-red-300 rounded-md text-[11px] font-bold inline-flex items-center gap-1" title={syncError || 'Error al inyectar en Windows Server'}>
+            <span className="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+            Error Sync
+          </span>
+        );
+      case 'manual':
+      default:
+        return (
+          <span className="px-2 py-0.5 bg-slate-100 text-slate-500 border border-slate-200 rounded-md text-[11px] font-medium inline-flex items-center gap-1" title="Túnel administrado manualmente">
+            Manual
+          </span>
+        );
     }
   };
 
@@ -1170,6 +1255,20 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                     <p className="text-[11px] text-slate-500 mt-1">Las descargas se llamarán <span className="font-mono">prefijo-01.conf</span></p>
                   </div>
                   <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Nombre Interfaz Windows Server</label>
+                    <input
+                      name="wgInterfaceName"
+                      type="text"
+                      defaultValue={editingTunnel?.wgInterfaceName || editingTunnel?.filePrefix || 'Lsoft-VPN'}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                      placeholder="Lsoft-VPN"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">Nombre en <span className="font-mono">wg.exe set [nombre]</span></p>
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1">Estado</label>
                     <select
                       name="status"
@@ -1180,6 +1279,20 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                       <option value="Inactivo">Inactivo</option>
                       <option value="Mantenimiento">Mantenimiento</option>
                     </select>
+                  </div>
+                  <div className="flex flex-col justify-center pt-2">
+                    <label className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition">
+                      <input
+                        type="checkbox"
+                        name="autoSyncServer"
+                        defaultChecked={editingTunnel ? editingTunnel.autoSyncServer : true}
+                        className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-slate-800 block">Sincronización en Caliente</span>
+                        <span className="text-[11px] text-slate-500 block">Inyectar peers en vivo con el Agente Windows Server</span>
+                      </div>
+                    </label>
                   </div>
                 </div>
 
@@ -1339,6 +1452,53 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
               </button>
             </div>
 
+            {/* Tarjeta de Aprovisionamiento Silencioso (1 Clic) */}
+            {!isRadminTunnel && newPeerResult.peer.provisionToken && (
+              <div className="mt-4 p-4 bg-white/95 rounded-xl border border-blue-200 shadow-sm space-y-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
+                      ⚡ Instalación Silenciosa en PC del Cliente (Recomendado)
+                    </span>
+                    <span className="text-xs text-slate-500 block mt-0.5">
+                      Instala WireGuard oficial (.msi), importa el túnel y levanta el servicio de Windows sin abrir la interfaz gráfica.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200">
+                    <span className="text-xs text-slate-500 font-medium">Token:</span>
+                    <span className="font-mono font-bold text-blue-700 text-sm tracking-wide">{newPeerResult.peer.provisionToken}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    onClick={() => copyToClipboard(vpnService.generatePowerShellInstallCommand(newPeerResult.peer.provisionToken!), 'ps1_new')}
+                    className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-sm"
+                    title="Copia el comando para pegar en PowerShell como Administrador en la PC del cliente"
+                  >
+                    <CopyIcon />
+                    {copiedKey === 'ps1_new' ? '¡Comando Copiado!' : '⚡ Copiar Comando PowerShell (1 Clic)'}
+                  </button>
+
+                  <button
+                    onClick={() => downloadBatchInstaller(newPeerResult.peer.provisionToken!, newPeerResult.peer.deviceName)}
+                    className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-sm"
+                    title="Descarga el instalador .bat preconfigurado para ejecutar con doble clic"
+                  >
+                    <DownloadIcon />
+                    Descargar Instalador (.bat)
+                  </button>
+
+                  {selectedTunnel?.autoSyncServer && (
+                    <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200 font-medium flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Sincronización en caliente activa: El Windows Server lo inyectará en segundos con wg.exe.
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className={`grid md:grid-cols-2 gap-6 mt-4 ${isRadminTunnel ? 'hidden' : ''}`}>
               {/* Bloque Servidor (Copiar y Pegar en wg0.conf) */}
               <div className="space-y-2 bg-white/70 p-4 rounded-xl border border-blue-200">
@@ -1488,67 +1648,123 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                   );
 
                   return (
-                    <div className="grid md:grid-cols-2 gap-6">
-                      {/* 1. Configuración Cliente */}
-                      <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <span className="text-xs uppercase tracking-wider text-slate-700 font-bold block">
-                              1. Configuración Cliente (.conf)
-                            </span>
-                            <span className="text-[11px] text-slate-500 font-mono">Archivo: <strong>{dlName}</strong></span>
+                    <div className="space-y-6">
+                      {/* Tarjeta de Aprovisionamiento Silencioso (1 Clic) */}
+                      {selectedPeerForConfig.provisionToken && (
+                        <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-xl shadow-xs space-y-3">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                            <div>
+                              <span className="text-xs font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
+                                ⚡ Instalación Silenciosa en PC del Cliente
+                              </span>
+                              <span className="text-xs text-slate-500 block mt-0.5">
+                                Configura e inicia WireGuard como servicio sin abrir la interfaz gráfica.
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-blue-200 shadow-xs">
+                              <span className="text-xs text-slate-500 font-medium">Token:</span>
+                              <span className="font-mono font-bold text-blue-700 text-sm tracking-wide">{selectedPeerForConfig.provisionToken}</span>
+                              {selectedPeerForConfig.provisionedAt && (
+                                <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold border border-emerald-200">
+                                  ✓ Canjeado ({selectedPeerForConfig.provisionedAt})
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1.5">
+
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
                             <button
-                              onClick={() => copyToClipboard(clientCfg, 'modal_client')}
-                              className="text-xs font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1 bg-white hover:bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-300 transition shadow-xs"
-                              title="Copiar texto de configuración cliente"
+                              onClick={() => copyToClipboard(vpnService.generatePowerShellInstallCommand(selectedPeerForConfig.provisionToken!), 'ps1_modal')}
+                              className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-sm"
+                              title="Copia el comando de 1 línea para pegar en PowerShell como Administrador"
                             >
-                              <CopyIcon /> {copiedKey === 'modal_client' ? '¡Copiado!' : 'Copiar'}
+                              <CopyIcon />
+                              {copiedKey === 'ps1_modal' ? '¡Comando Copiado!' : '⚡ Copiar Comando PowerShell (1 Clic)'}
                             </button>
+
                             <button
-                              onClick={() => downloadClientConfigFile(clientCfg, selectedCompany.companyNumber, selectedPeerForConfig.pcNumber)}
-                              className="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition shadow-xs"
-                              title={`Descargar archivo ${dlName}`}
+                              onClick={() => downloadBatchInstaller(selectedPeerForConfig.provisionToken!, selectedPeerForConfig.deviceName)}
+                              className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-sm"
+                              title="Descarga el instalador .bat preconfigurado para ejecutar con doble clic"
                             >
-                              <DownloadIcon /> Descargar {dlName}
+                              <DownloadIcon />
+                              Descargar Instalador (.bat)
+                            </button>
+
+                            <button
+                              onClick={() => handleRegenerateToken(selectedPeerForConfig)}
+                              disabled={actionLoading}
+                              className="flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-3 py-2 rounded-xl font-bold transition"
+                              title="Genera un nuevo token para este equipo (útil para reinstalar o reubicar la PC)"
+                            >
+                              🔄 Regenerar Token
                             </button>
                           </div>
                         </div>
+                      )}
 
-                        {!hasPrivateKey && (
-                          <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 leading-tight">
-                            ⚠️ Este equipo fue registrado antes de habilitar el almacenamiento de clave privada. En la línea <code>PrivateKey</code> debes colocar la clave privada correspondiente al dispositivo.
+                      <div className="grid md:grid-cols-2 gap-6">
+                        {/* 1. Configuración Cliente */}
+                        <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <span className="text-xs uppercase tracking-wider text-slate-700 font-bold block">
+                                1. Configuración Cliente (.conf)
+                              </span>
+                              <span className="text-[11px] text-slate-500 font-mono">Archivo: <strong>{dlName}</strong></span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => copyToClipboard(clientCfg, 'modal_client')}
+                                className="text-xs font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1 bg-white hover:bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-300 transition shadow-xs"
+                                title="Copiar texto de configuración cliente"
+                              >
+                                <CopyIcon /> {copiedKey === 'modal_client' ? '¡Copiado!' : 'Copiar'}
+                              </button>
+                              <button
+                                onClick={() => downloadClientConfigFile(clientCfg, selectedCompany.companyNumber, selectedPeerForConfig.pcNumber)}
+                                className="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition shadow-xs"
+                                title={`Descargar archivo ${dlName}`}
+                              >
+                                <DownloadIcon /> Descargar {dlName}
+                              </button>
+                            </div>
                           </div>
-                        )}
 
-                        <div className="bg-slate-900 rounded-xl p-3.5 overflow-x-auto shadow-inner">
-                          <pre className="text-xs text-blue-300 font-mono leading-relaxed">
-                            <code>{clientCfg}</code>
-                          </pre>
-                        </div>
-                      </div>
+                          {!hasPrivateKey && (
+                            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 leading-tight">
+                              ⚠️ Este equipo fue registrado antes de habilitar el almacenamiento de clave privada. En la línea <code>PrivateKey</code> debes colocar la clave privada correspondiente al dispositivo.
+                            </div>
+                          )}
 
-                      {/* 2. Configuración Servidor */}
-                      <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <span className="text-xs uppercase tracking-wider text-slate-700 font-bold block">
-                              2. Configuración Servidor (wg0.conf)
-                            </span>
-                            <span className="text-[11px] text-slate-500">Copia y pega este bloque en el servidor</span>
+                          <div className="bg-slate-900 rounded-xl p-3.5 overflow-x-auto shadow-inner">
+                            <pre className="text-xs text-blue-300 font-mono leading-relaxed">
+                              <code>{clientCfg}</code>
+                            </pre>
                           </div>
-                          <button
-                            onClick={() => copyToClipboard(serverCfg, 'modal_server')}
-                            className="text-xs font-bold text-blue-700 hover:text-blue-800 flex items-center gap-1.5 bg-blue-100/80 hover:bg-blue-200/80 px-2.5 py-1.5 rounded-lg border border-blue-300 transition shadow-xs"
-                          >
-                            <CopyIcon /> {copiedKey === 'modal_server' ? '¡Copiado!' : 'Copiar Servidor'}
-                          </button>
                         </div>
-                        <div className="bg-slate-900 rounded-xl p-3.5 overflow-x-auto shadow-inner">
-                          <pre className="text-xs text-green-400 font-mono leading-relaxed">
-                            <code>{serverCfg}</code>
-                          </pre>
+
+                        {/* 2. Configuración Servidor */}
+                        <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <span className="text-xs uppercase tracking-wider text-slate-700 font-bold block">
+                                2. Configuración Servidor (wg0.conf)
+                              </span>
+                              <span className="text-[11px] text-slate-500">Copia y pega este bloque en el servidor</span>
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(serverCfg, 'modal_server')}
+                              className="text-xs font-bold text-blue-700 hover:text-blue-800 flex items-center gap-1.5 bg-blue-100/80 hover:bg-blue-200/80 px-2.5 py-1.5 rounded-lg border border-blue-300 transition shadow-xs"
+                            >
+                              <CopyIcon /> {copiedKey === 'modal_server' ? '¡Copiado!' : 'Copiar Servidor'}
+                            </button>
+                          </div>
+                          <div className="bg-slate-900 rounded-xl p-3.5 overflow-x-auto shadow-inner">
+                            <pre className="text-xs text-green-400 font-mono leading-relaxed">
+                              <code>{serverCfg}</code>
+                            </pre>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1600,6 +1816,7 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                   <th className="px-6 py-4">Equipo</th>
                   <th className="px-6 py-4">Usuario</th>
                   <th className="px-6 py-4">{isRadminTunnel ? 'Notas' : 'Clave Pública (WireGuard)'}</th>
+                  {!isRadminTunnel && <th className="px-6 py-4">Sincronización</th>}
                   <th className="px-6 py-4">Fecha</th>
                   <th className="px-6 py-4">Estado</th>
                   <th className="px-6 py-4 text-center">Acciones</th>
@@ -1631,6 +1848,23 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                         </span>
                       )}
                     </td>
+                    {!isRadminTunnel && (
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1 items-start">
+                          {renderSyncBadge(peer.syncStatus, peer.syncError)}
+                          {peer.provisionToken && (
+                            <span className="font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200" title={`Token de Activación: ${peer.provisionToken}`}>
+                              {peer.provisionToken}
+                            </span>
+                          )}
+                          {peer.provisionedAt && (
+                            <span className="text-[10px] text-emerald-600 font-bold" title={`Instalado el ${peer.provisionedAt}`}>
+                              ✓ PC Conectada
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-slate-500 text-xs">{peer.createdAt}</td>
                     <td className="px-6 py-4">{renderStatusBadge(peer.status)}</td>
                     <td className="px-6 py-4 text-center">
@@ -1657,7 +1891,7 @@ const VpnManagement: React.FC<VpnManagementProps> = ({ user }) => {
                 ))}
                 {peers.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-6 py-10 text-center text-slate-400 font-medium">
+                    <td colSpan={isRadminTunnel ? 7 : 8} className="px-6 py-10 text-center text-slate-400 font-medium">
                       {isRadminTunnel
                         ? 'No hay equipos registrados. Haz clic en "Registrar Equipo" para agregar el primero.'
                         : 'No hay equipos registrados en esta VPN. Haz clic en "Crear Nuevo Peer" para generar el primero.'}

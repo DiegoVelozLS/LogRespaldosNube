@@ -6,6 +6,7 @@ export interface VpnServer {
   id: string;
   name: string;
   host: string;
+  agentKey?: string;
   sortOrder: number;
   status: 'Activo' | 'Inactivo' | 'Mantenimiento';
 }
@@ -24,6 +25,8 @@ export interface VpnTunnel {
   addressCidr: number;
   persistentKeepalive: number;
   filePrefix: string;
+  wgInterfaceName?: string;
+  autoSyncServer?: boolean;
   sortOrder: number;
   status: 'Activo' | 'Inactivo' | 'Mantenimiento';
 }
@@ -39,6 +42,11 @@ export interface VpnPeer {
   privateKey?: string;
   notes?: string;
   status: 'Activo' | 'Inactivo';
+  syncStatus?: 'pending' | 'synced' | 'pending_remove' | 'error' | 'manual';
+  syncedAt?: string;
+  syncError?: string;
+  provisionToken?: string;
+  provisionedAt?: string;
   createdAt: string;
 }
 
@@ -78,6 +86,7 @@ export const FALLBACK_SERVER: VpnServer = {
   id: '',
   name: 'Servidor 1',
   host: '20.242.117.143',
+  agentKey: 'lsoft_agent_secret_key_2026',
   sortOrder: 1,
   status: 'Activo',
 };
@@ -93,9 +102,11 @@ export const FALLBACK_TUNNEL: VpnTunnel = {
   dns: '1.1.1.1',
   clientAllowedIps: '10.0.0.1/32',
   addressPrefix: '10.0',
-  addressCidr: 16,
+  addressCidr: 32,
   persistentKeepalive: 25,
   filePrefix: 'Lsoft-VPN',
+  wgInterfaceName: 'Lsoft-VPN',
+  autoSyncServer: true,
   sortOrder: 1,
   status: 'Activo',
 };
@@ -230,7 +241,10 @@ export function buildClientConfig(
   companyNumber: number,
   pcNumber: number
 ): string {
-  const address = `${buildPeerIp(tunnel, companyNumber, pcNumber)}/${tunnel.addressCidr}`;
+  // Si el túnel tiene autoSyncServer o clientAllowedIps con /32, forzar máscara de host /32
+  // para evitar que Windows cree rutas on-link para toda la subred /16
+  const cidr = tunnel.autoSyncServer ? 32 : (tunnel.addressCidr || 16);
+  const address = `${buildPeerIp(tunnel, companyNumber, pcNumber)}/${cidr}`;
   const endpoint = tunnel.listenPort
     ? `${tunnel.endpointHost}:${tunnel.listenPort}`
     : tunnel.endpointHost;
@@ -289,6 +303,7 @@ function mapServer(s: any): VpnServer {
     id: s.id,
     name: s.name,
     host: s.host || '',
+    agentKey: s.agent_key || '',
     sortOrder: s.sort_order ?? 0,
     status: s.status || 'Activo',
   };
@@ -309,8 +324,31 @@ function mapTunnel(t: any): VpnTunnel {
     addressCidr: t.address_cidr ?? 16,
     persistentKeepalive: t.persistent_keepalive ?? 25,
     filePrefix: t.file_prefix || 'Lsoft-VPN',
+    wgInterfaceName: t.wg_interface_name || t.file_prefix || 'Lsoft-VPN',
+    autoSyncServer: Boolean(t.auto_sync_server),
     sortOrder: t.sort_order ?? 0,
     status: t.status || 'Activo',
+  };
+}
+
+export function mapPeer(p: any, fallbackPrivateKey?: string): VpnPeer {
+  return {
+    id: p.id,
+    companyId: p.company_id,
+    pcNumber: p.pc_number,
+    ip: p.ip || '',
+    deviceName: p.device_name,
+    userName: p.user_name,
+    publicKey: p.public_key || '',
+    privateKey: p.private_key || fallbackPrivateKey || '',
+    notes: p.notes || '',
+    status: p.status,
+    syncStatus: p.sync_status || 'manual',
+    syncedAt: p.synced_at ? p.synced_at.split('T')[0] : undefined,
+    syncError: p.sync_error || undefined,
+    provisionToken: p.provision_token || undefined,
+    provisionedAt: p.provisioned_at ? p.provisioned_at.split('T')[0] : undefined,
+    createdAt: p.created_at ? p.created_at.split('T')[0] : '',
   };
 }
 
@@ -414,6 +452,8 @@ export const vpnService = {
       address_cidr: params.addressCidr || 16,
       persistent_keepalive: params.persistentKeepalive || 25,
       file_prefix: params.filePrefix?.trim() || 'Lsoft-VPN',
+      wg_interface_name: params.wgInterfaceName?.trim() || params.filePrefix?.trim() || 'Lsoft-VPN',
+      auto_sync_server: params.autoSyncServer ?? false,
       sort_order: params.sortOrder ?? 99,
       status: params.status || 'Activo',
     };
@@ -450,6 +490,8 @@ export const vpnService = {
     if (params.addressCidr !== undefined) payload.address_cidr = params.addressCidr;
     if (params.persistentKeepalive !== undefined) payload.persistent_keepalive = params.persistentKeepalive;
     if (params.filePrefix !== undefined) payload.file_prefix = params.filePrefix.trim() || 'Lsoft-VPN';
+    if (params.wgInterfaceName !== undefined) payload.wg_interface_name = params.wgInterfaceName.trim() || null;
+    if (params.autoSyncServer !== undefined) payload.auto_sync_server = params.autoSyncServer;
     if (params.status !== undefined) payload.status = params.status;
 
     const { data, error } = await (supabase as any)
@@ -541,19 +583,7 @@ export const vpnService = {
 
       if (peersError) throw peersError;
 
-      const formattedPeers: VpnPeer[] = (peers || []).map((p: any) => ({
-        id: p.id,
-        companyId: p.company_id,
-        pcNumber: p.pc_number,
-        ip: p.ip,
-        deviceName: p.device_name,
-        userName: p.user_name,
-        publicKey: p.public_key || '',
-        privateKey: p.private_key || '',
-        notes: p.notes || '',
-        status: p.status,
-        createdAt: p.created_at ? p.created_at.split('T')[0] : '',
-      }));
+      const formattedPeers: VpnPeer[] = (peers || []).map((p: any) => mapPeer(p));
 
       const formattedCompany: VpnCompany = {
         id: comp.id,
@@ -813,19 +843,7 @@ export const vpnService = {
         savedPeer = insertRes.data;
       }
 
-      const formattedPeer: VpnPeer = {
-        id: savedPeer.id,
-        companyId: savedPeer.company_id,
-        pcNumber: savedPeer.pc_number,
-        ip: savedPeer.ip || '',
-        deviceName: savedPeer.device_name,
-        userName: savedPeer.user_name,
-        publicKey: savedPeer.public_key || '',
-        privateKey: savedPeer.private_key || privateKey,
-        notes: savedPeer.notes || '',
-        status: savedPeer.status,
-        createdAt: savedPeer.created_at ? savedPeer.created_at.split('T')[0] : '',
-      };
+      const formattedPeer: VpnPeer = mapPeer(savedPeer, privateKey);
 
       const clientConfig = isRadmin
         ? ''
@@ -855,20 +873,90 @@ export const vpnService = {
   },
 
   /**
-   * Elimina un equipo (peer)
+   * Elimina un equipo (peer).
+   * Si el túnel tiene auto_sync_server = true, request_delete_vpn_peer lo marca
+   * como 'pending_remove' para que el agente en el Windows Server lo retire en vivo
+   * con wg.exe set ... remove antes de borrarlo definitivamente.
    */
-  deletePeer: async (peerId: string): Promise<void> => {
+  deletePeer: async (peerId: string): Promise<{ action: 'deleted' | 'pending_remove' }> => {
     try {
-      const { error } = await (supabase as any)
+      const { data, error } = await (supabase as any).rpc('request_delete_vpn_peer', {
+        p_peer_id: peerId,
+      });
+
+      if (!error && data?.success) {
+        return { action: data.action || 'deleted' };
+      }
+
+      // Fallback: borrado directo si el RPC aún no está disponible
+      const { error: directErr } = await (supabase as any)
         .from('vpn_peers')
         .delete()
         .eq('id', peerId);
 
-      if (error) throw error;
+      if (directErr) throw directErr;
+      return { action: 'deleted' };
     } catch (error) {
       console.error('Error deleting VPN peer:', error);
       throw error;
     }
+  },
+
+  /**
+   * Regenera el token de activación para un peer existente (permite reinstalar la PC del cliente)
+   */
+  regenerateProvisionToken: async (peerId: string): Promise<string> => {
+    try {
+      const { data, error } = await (supabase as any).rpc('regenerate_vpn_provision_token', {
+        p_peer_id: peerId,
+      });
+
+      if (error) throw error;
+      return data?.provision_token || '';
+    } catch (error) {
+      console.error('Error regenerating provision token:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Genera el comando de 1 línea de PowerShell para instalar silenciosamente el cliente
+   */
+  generatePowerShellInstallCommand: (token: string, baseUrl?: string): string => {
+    const origin = baseUrl || (typeof window !== 'undefined' ? window.location.origin : '');
+    const provisionUrl = `${origin}/api/vpn-provision?token=${token}`;
+    return `irm "${provisionUrl}&format=ps1" | iex`;
+  },
+
+  /**
+   * Genera el contenido del archivo .bat descargable que se ejecuta con doble clic
+   */
+  generateBatchInstallerContent: (token: string, baseUrl?: string, fileName?: string): string => {
+    const origin = baseUrl || (typeof window !== 'undefined' ? window.location.origin : '');
+    const provisionUrl = `${origin}/api/vpn-provision?token=${token}`;
+    return `@echo off
+chcp 65001 >nul
+title Instalador WireGuard VPN - Listosoft
+echo ========================================================
+echo   Instalador Silencioso WireGuard VPN - Listosoft
+echo ========================================================
+echo.
+
+:: Verificar permisos de Administrador
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [!] Solicitando permisos de Administrador...
+    powershell -NoProfile -Command "Start-Process cmd.exe -ArgumentList '/c \"\"%~f0\"\"' -Verb RunAs"
+    exit /b
+)
+
+echo [*] Configurando tunel para: ${fileName || 'Cliente'}
+echo [*] Descargando e instalando WireGuard...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm '${provisionUrl}&format=ps1' | iex"
+
+echo.
+pause
+`;
   },
 
   /**

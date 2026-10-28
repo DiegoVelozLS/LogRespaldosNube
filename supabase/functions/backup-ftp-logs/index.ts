@@ -7,10 +7,61 @@ const corsHeaders = {
 }
 
 const LOG_NAME = /^Backup_.+_\d{8}\.log$/i
+const AZCOPY_LOG_REGEX = /^(respaldo_log_.*\.txt(\.txt)?|log\.txt)$/i
+const LIMPIEZA_LOG_REGEX = /^limpieza_lsoft_.*\.log$/i
 const LINE = /^\[(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):(\d{2})\] \[(\w+)\s*\] (.*)$/
 const ALLOWED_ROLES = ["ADMIN", "TECH", "SOPORTE"]
 
 type Stage = "ok" | "error" | "pending"
+
+interface AzCopySyncRun {
+  id: string
+  filename: string
+  jobId: string
+  logPath?: string
+  startedAt: string
+  endedAt?: string
+  durationMinutes: number
+  status: "completed" | "completed_with_errors" | "failed" | "in_progress"
+  percent?: number
+  filesScannedSource: number
+  filesScannedDestination: number
+  totalTransfers: number
+  transfersCompleted: number
+  transfersFailed: number
+  transfersPending?: number
+  deletionsAtDestination: number
+  bytesTransferred: number
+  companies?: string[]
+}
+
+interface LimpiezaTypeSummary {
+  type: string
+  valid: number
+  groups: number
+  kept: number
+  candidates: number
+  deleted: number
+  errors: number
+  mbToFree: number
+}
+
+interface LimpiezaRun {
+  id: string
+  filename: string
+  startedAt: string
+  isDryRun: boolean
+  folder: string
+  config: { txt: number; normal: number; general: number; formatos: number }
+  totalValidFiles: number
+  totalCandidates: number
+  totalDeleted: number
+  totalErrors: number
+  totalMbToFree: number
+  typesSummary: LimpiezaTypeSummary[]
+  omittedCount: number
+  candidateCompanies?: string[]
+}
 
 interface DatabaseResult {
   name: string
@@ -81,12 +132,187 @@ Deno.serve(async (req) => {
       ? requestedPath 
       : (action === "download" && requestedPath.includes("/") 
           ? requestedPath.substring(0, requestedPath.lastIndexOf("/")) 
-          : (Deno.env.get("FTP_LOGS_PATH") || "/LSOFT"))
+          : (action === "sync-clean-logs" || action === "read-sync-clean-log"
+              ? (requestedPath || Deno.env.get("FTP_SYNC_LOGS_PATH") || "/LSOFT/Logs")
+              : (Deno.env.get("FTP_LOGS_PATH") || "/LSOFT")))
 
     const ftp = await connectFtp(initialDir)
     let shouldCloseFtp = true
 
     try {
+      if (action === "sync-clean-logs") {
+        let names: string[] = []
+        try {
+          names = (await ftp.listNames()).map((n) => n.split(/[/\\]/).pop() || n)
+        } catch {
+          names = []
+        }
+
+        // Si estamos en la raíz o /LSOFT y vemos la carpeta 'Logs' pero no los archivos directos, navegar a Logs
+        const isSyncOrClean = (n: string) => AZCOPY_LOG_REGEX.test(n) || LIMPIEZA_LOG_REGEX.test(n)
+        if (names.some((n) => n.toLowerCase() === "logs") && !names.some(isSyncOrClean)) {
+          try {
+            const cwdRes = await ftp.command("CWD Logs")
+            if (cwdRes.code === 250) {
+              names = (await ftp.listNames()).map((n) => n.split(/[/\\]/).pop() || n)
+            }
+          } catch {}
+        }
+
+        const azCopyFiles = names.filter((n) => AZCOPY_LOG_REGEX.test(n)).sort().reverse()
+        const limpiezaFiles = names.filter((n) => LIMPIEZA_LOG_REGEX.test(n)).sort().reverse()
+
+        const azCopyRuns: AzCopySyncRun[] = []
+        for (const file of azCopyFiles.slice(0, 15)) {
+          try {
+            const bytes = await ftp.retrieve(file)
+            const runs = parseAzCopyRuns(file, decodeLog(bytes))
+            azCopyRuns.push(...runs)
+          } catch (err) {
+            console.error(`Error leyendo azcopy ${file}:`, err)
+          }
+        }
+
+        const limpiezaRuns: LimpiezaRun[] = []
+        for (const file of limpiezaFiles.slice(0, 15)) {
+          try {
+            const bytes = await ftp.retrieve(file)
+            const run = parseLimpiezaRun(file, decodeLog(bytes))
+            if (run) limpiezaRuns.push(run)
+          } catch (err) {
+            console.error(`Error leyendo limpieza ${file}:`, err)
+          }
+        }
+
+        azCopyRuns.sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+        limpiezaRuns.sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+
+        return json({
+          azCopyRuns,
+          limpiezaRuns,
+        })
+      }
+
+      if (action === "read-sync-clean-log") {
+        const filename = String(body.filename || "")
+        if (!filename || filename.includes("/") || filename.includes("\\")) {
+          return json({ error: "Nombre de archivo no válido." }, 400)
+        }
+        let bytes: Uint8Array
+        try {
+          bytes = await ftp.retrieve(filename)
+        } catch {
+          try {
+            await ftp.command("CWD Logs")
+            bytes = await ftp.retrieve(filename)
+          } catch (err) {
+            throw new Error(`No se pudo leer el archivo ${filename}: ${err instanceof Error ? err.message : err}`)
+          }
+        }
+        return json({ filename, content: decodeLog(bytes) })
+      }
+
+      if (action === "read-azcopy-files") {
+        const jobId = String(body.jobId || "").trim()
+        const logPath = String(body.logPath || "").trim()
+        const filename = String(body.filename || "").trim()
+
+        let logContent = ""
+        let resolvedLogFile = ""
+
+        try {
+          const names = await ftp.listNames()
+          if (names.some((n) => n.toLowerCase() === "logs")) {
+            await ftp.command("CWD Logs")
+          }
+        } catch {}
+
+        const candidatesToTry: string[] = []
+        if (logPath) {
+          const norm = logPath.replace(/\\/g, "/")
+          const logsIdx = norm.toLowerCase().indexOf("/logs/")
+          if (logsIdx !== -1) {
+            candidatesToTry.push(norm.slice(logsIdx + 6))
+          }
+          const lsoftIdx = norm.toLowerCase().indexOf("/lsoft/")
+          if (lsoftIdx !== -1 && logsIdx === -1) {
+            candidatesToTry.push(norm.slice(lsoftIdx + 7))
+          }
+          const baseName = norm.split("/").pop()
+          if (baseName) candidatesToTry.push(baseName)
+        }
+
+        if (jobId) {
+          candidatesToTry.push(`${jobId}.log`)
+        }
+
+        for (const cand of candidatesToTry) {
+          if (!cand) continue
+          try {
+            const bytes = await ftp.retrieve(cand)
+            logContent = decodeLog(bytes)
+            resolvedLogFile = cand
+            break
+          } catch {}
+        }
+
+        if (!logContent && jobId) {
+          try {
+            const listText = await ftp.list()
+            const entries = parseList(listText)
+            const subdirs = entries.filter((e) => e.isDirectory && (e.name.startsWith("respaldo_azcopy_") || e.name.toLowerCase().includes("azcopy")))
+            for (const dir of subdirs) {
+              try {
+                const subPath = `${dir.name}/${jobId}.log`
+                const bytes = await ftp.retrieve(subPath)
+                logContent = decodeLog(bytes)
+                resolvedLogFile = subPath
+                break
+              } catch {}
+            }
+          } catch {}
+        }
+
+        if (!logContent && filename) {
+          try {
+            const bytes = await ftp.retrieve(filename)
+            const fallbackText = decodeLog(bytes)
+            const files = parseAzCopyFileLines(fallbackText)
+            if (files.length > 0) {
+              return json({
+                success: true,
+                files,
+                totalCompleted: files.filter((f) => f.status === "completed").length,
+                totalFailed: files.filter((f) => f.status === "failed").length,
+                logFile: filename,
+                isFallback: true,
+              })
+            }
+          } catch {}
+        }
+
+        if (!logContent) {
+          return json({
+            success: false,
+            notFound: true,
+            message: `No se localizó el archivo de registro detallado (${jobId ? jobId + '.log' : 'log de trabajo'}) en /LSOFT/Logs. Para que las futuras sincronizaciones dejen su registro detallado en el FTP, puedes definir 'set AZCOPY_LOG_LOCATION=C:\\FTP\\LSOFT\\Logs' en sync.bat.`,
+            files: [],
+            totalCompleted: 0,
+            totalFailed: 0,
+          })
+        }
+
+        const files = parseAzCopyFileLines(logContent)
+
+        return json({
+          success: true,
+          files,
+          totalCompleted: files.filter((f) => f.status === "completed").length,
+          totalFailed: files.filter((f) => f.status === "failed").length,
+          logFile: resolvedLogFile,
+        })
+      }
+
       if (action === "explore") {
         const currentPath = requestedPath || "/LSOFT"
         const items = await ftp.listDetails()
@@ -696,3 +922,364 @@ function parseList(text: string): FtpItemEntry[] {
   }
   return items
 }
+
+function parseAzCopyDate(str: string): string {
+  if (!str) return ""
+  // Format: [Day] MM/DD/YYYY HH:mm:ss[.ms]
+  const m1 = str.match(/(?:[a-zA-Z]{3}\s+)?(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/)
+  if (m1) {
+    const month = m1[1]
+    const day = m1[2]
+    const year = m1[3]
+    const time = `${m1[4]}:${m1[5]}:${m1[6]}`
+    return `${year}-${month}-${day}T${time}Z`
+  }
+  // Format: YYYY-MM-DD_HH-mm-ss
+  const m2 = str.match(/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/)
+  if (m2) {
+    return `${m2[1]}-${m2[2]}-${m2[3]}T${m2[4]}:${m2[5]}:${m2[6]}Z`
+  }
+  return str
+}
+
+interface AzCopyFileItem {
+  company: string
+  fileName: string
+  fullPath?: string
+  status: "completed" | "failed"
+  timestamp?: string
+  errorMessage?: string
+}
+
+function parseAzCopyFileLines(text: string): AzCopyFileItem[] {
+  const items: AzCopyFileItem[] = []
+  const seen = new Set<string>()
+
+  const lines = text.split(/\r?\n/)
+  for (const rawLine of lines) {
+    const line = rawLine.trim()
+    if (!line) continue
+
+    // 1. Fallas: UPLOADFAILED
+    const failMatch = line.match(/UPLOADFAILED:\s*([^\s:]+)(?:\s*:\s*\d+)?(?:\s*:\s*(.+))?/i)
+    if (failMatch) {
+      const fullPath = failMatch[1].trim()
+      const errorMsg = failMatch[2]?.trim()
+      const norm = fullPath.replace(/\\/g, "/")
+      const parts = norm.split("/")
+      const fileName = parts.pop() || fullPath
+      let company = "General"
+      const lsoftIdx = parts.findIndex((p) => p.toUpperCase() === "LSOFT")
+      if (lsoftIdx !== -1 && lsoftIdx + 1 < parts.length) {
+        company = parts[lsoftIdx + 1]
+      } else if (parts.length > 0) {
+        company = parts[parts.length - 1]
+      }
+
+      const key = `${company}/${fileName}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        items.push({
+          company,
+          fileName,
+          fullPath,
+          status: "failed",
+          errorMessage: errorMsg,
+          timestamp: line.slice(0, 19).replace(/\//g, "-"),
+        })
+      }
+      continue
+    }
+
+    // 2. HTTP PUT o transferencias con éxito hacia Azure Blob
+    const putMatch = line.match(/PUT\s+(https?:\/\/[^\s\?]+)/i)
+    if (putMatch) {
+      const rawUrl = putMatch[1]
+      try {
+        const decoded = decodeURIComponent(rawUrl)
+        const parts = decoded.split("/")
+        const fileName = parts.pop() || ""
+        if (!fileName || !/\.(zip|bak|rar|7z|txt|xml|tar|gz)$/i.test(fileName)) continue
+
+        let company = "General"
+        const lsoftIdx = parts.findIndex((p) => p.toUpperCase() === "LSOFT" || p.toUpperCase() === "RESPALDOS-FTPS")
+        if (lsoftIdx !== -1 && lsoftIdx + 1 < parts.length) {
+          company = parts[lsoftIdx + 1]
+        } else if (parts.length > 0) {
+          company = parts[parts.length - 1]
+        }
+
+        const key = `${company}/${fileName}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          items.push({
+            company,
+            fileName,
+            fullPath: decoded,
+            status: "completed",
+            timestamp: line.slice(0, 19).replace(/\//g, "-"),
+          })
+        }
+      } catch {}
+      continue
+    }
+
+    // 3. Formato alternativo UPLOAD / Upload:
+    const uploadMatch = line.match(/UPLOAD:\s*([^\s]+)\s+TO\s+/i)
+    if (uploadMatch) {
+      const fullPath = uploadMatch[1].replace(/["']/g, "").trim()
+      const norm = fullPath.replace(/\\/g, "/")
+      const parts = norm.split("/")
+      const fileName = parts.pop() || fullPath
+      if (!/\.(zip|bak|rar|7z|txt|xml|tar|gz)$/i.test(fileName)) continue
+
+      let company = "General"
+      const lsoftIdx = parts.findIndex((p) => p.toUpperCase() === "LSOFT")
+      if (lsoftIdx !== -1 && lsoftIdx + 1 < parts.length) {
+        company = parts[lsoftIdx + 1]
+      } else if (parts.length > 0) {
+        company = parts[parts.length - 1]
+      }
+
+      const key = `${company}/${fileName}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        items.push({
+          company,
+          fileName,
+          fullPath,
+          status: "completed",
+          timestamp: line.slice(0, 19).replace(/\//g, "-"),
+        })
+      }
+      continue
+    }
+
+    // 4. Líneas directas en LSOFT
+    const genericMatch = line.match(/(?:[A-Za-z]:[\\\/].*?[\\\/]LSOFT[\\\/]|(?:\/|\\)LSOFT(?:\/|\\))([^\\\/]+)[\\\/]([^\s"':<>]+\.(?:zip|bak|rar|7z|txt|xml))/i)
+    if (genericMatch) {
+      const company = genericMatch[1].trim()
+      const fileName = genericMatch[2].trim()
+      const key = `${company}/${fileName}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        const isErr = /fail|error|err/i.test(line)
+        items.push({
+          company,
+          fileName,
+          fullPath: genericMatch[0],
+          status: isErr ? "failed" : "completed",
+          timestamp: line.slice(0, 19).replace(/\//g, "-"),
+        })
+      }
+    }
+  }
+
+  return items.sort((a, b) => a.company.localeCompare(b.company) || a.fileName.localeCompare(b.fileName))
+}
+
+function parseAzCopyRuns(filename: string, text: string): AzCopySyncRun[] {
+  const blocks = text.split(/={10,}/).map((b) => b.trim()).filter((b) => b.length > 20)
+  const runs: AzCopySyncRun[] = []
+  const blockList = blocks.length > 0 ? blocks : [text.trim()]
+
+  for (let i = 0; i < blockList.length; i++) {
+    const block = blockList[i]
+    if (!block) continue
+
+    const jobMatch = block.match(/Job\s+([0-9a-fA-F-]+)\s+(?:has started|Summary)/i)
+    const jobId = jobMatch ? jobMatch[1] : ""
+
+    const logLocMatch = block.match(/Log file is located at:\s*([^\r\n]+)/i)
+    const logPath = logLocMatch ? logLocMatch[1].trim() : undefined
+
+    const startMatch = block.match(/Inicio:\s*([^\r\n]+)/i)
+    const rawStart = startMatch ? startMatch[1].trim() : ""
+    const startedAt = parseAzCopyDate(rawStart) || rawStart
+
+    const endMatch = block.match(/Fin:\s*([^\r\n]+)/i)
+    const rawEnd = endMatch ? endMatch[1].trim() : ""
+    const endedAt = rawEnd ? (parseAzCopyDate(rawEnd) || rawEnd) : undefined
+
+    const srcMatch = block.match(/Files Scanned at Source:\s*(\d+)/i)
+    const filesScannedSource = srcMatch ? parseInt(srcMatch[1], 10) : 0
+
+    const dstMatch = block.match(/Files Scanned at Destination:\s*(\d+)/i)
+    const filesScannedDestination = dstMatch ? parseInt(dstMatch[1], 10) : 0
+
+    const elapsedMatch = block.match(/Elapsed Time \(Minutes\):\s*([\d.]+)/i)
+    const durationMinutes = elapsedMatch ? parseFloat(elapsedMatch[1]) : 0
+
+    const totalTransMatch = block.match(/Total Number of Copy Transfers:\s*(\d+)/i)
+    let totalTransfers = totalTransMatch ? parseInt(totalTransMatch[1], 10) : 0
+
+    const compTransMatch = block.match(/Number of Copy Transfers Completed:\s*(\d+)/i)
+    let transfersCompleted = compTransMatch ? parseInt(compTransMatch[1], 10) : 0
+
+    const failTransMatch = block.match(/Number of Copy Transfers Failed:\s*(\d+)/i)
+    let transfersFailed = failTransMatch ? parseInt(failTransMatch[1], 10) : 0
+
+    const delDestMatch = block.match(/Number of Deletions at Destination:\s*(\d+)/i)
+    const deletionsAtDestination = delDestMatch ? parseInt(delDestMatch[1], 10) : 0
+
+    const bytesMatch = block.match(/Total Number of Bytes Transferred:\s*(\d+)/i)
+    const bytesTransferred = bytesMatch ? parseInt(bytesMatch[1], 10) : 0
+
+    const statusMatch = block.match(/Final Job Status:\s*(\w+)/i)
+    const finalStatusStr = statusMatch ? statusMatch[1].trim() : ""
+
+    let status: "completed" | "completed_with_errors" | "failed" | "in_progress" = "completed"
+    let percent: number | undefined = undefined
+    let transfersPending: number | undefined = undefined
+
+    if (finalStatusStr) {
+      const lower = finalStatusStr.toLowerCase()
+      if (lower === "completed") {
+        status = transfersFailed > 0 ? "completed_with_errors" : "completed"
+      } else if (lower === "completedwitherrors") {
+        status = "completed_with_errors"
+      } else if (lower === "failed") {
+        status = "failed"
+      } else {
+        status = "completed"
+      }
+      percent = 100
+    } else {
+      // En progreso o incompleto
+      const progMatches = [...block.matchAll(/(\d+(?:\.\d+)?)\s*\%,\s*(\d+)\s*Done,\s*(\d+)\s*Failed,\s*(\d+)\s*Pending,\s*(\d+)\s*Total/gi)]
+      if (progMatches.length > 0) {
+        const last = progMatches[progMatches.length - 1]
+        percent = parseFloat(last[1])
+        transfersCompleted = parseInt(last[2], 10)
+        transfersFailed = parseInt(last[3], 10)
+        transfersPending = parseInt(last[4], 10)
+        totalTransfers = parseInt(last[5], 10)
+        status = "in_progress"
+      }
+    }
+
+    const compMatches = block.matchAll(/(?:[A-Za-z]:[\\\/].*?[\\\/]LSOFT[\\\/]|(?:\/|\\)LSOFT(?:\/|\\))([^\\\/\s"':]+)/gi)
+    const compSet = new Set<string>()
+    for (const m of compMatches) {
+      if (m[1] && m[1].toUpperCase() !== 'LOGS') compSet.add(m[1].trim())
+    }
+    const companies = Array.from(compSet)
+
+    const id = `${filename}_${jobId || i}_${startedAt}`
+
+    runs.push({
+      id,
+      filename,
+      jobId,
+      logPath,
+      startedAt,
+      endedAt,
+      durationMinutes,
+      status,
+      percent,
+      filesScannedSource,
+      filesScannedDestination,
+      totalTransfers,
+      transfersCompleted,
+      transfersFailed,
+      transfersPending,
+      deletionsAtDestination,
+      bytesTransferred,
+      companies,
+    })
+  }
+
+  return runs
+}
+
+function parseLimpiezaRun(filename: string, text: string): LimpiezaRun | null {
+  const initMatch = text.match(/\[([\d-]+ [\d:]+)\] Inicio:\s*([^\r\n]+)/i)
+  if (!initMatch) return null
+
+  const rawStart = initMatch[1]
+  const startedAt = rawStart.replace(" ", "T") + "Z"
+  const startDesc = initMatch[2]
+  const isDryRun = /VISTA PREVIA/i.test(startDesc)
+
+  const folderMatch = startDesc.match(/Carpeta:\s*([^\r\n.]+)/i)
+  const folder = folderMatch ? folderMatch[1].trim() : "C:\\FTP\\LSOFT"
+
+  const cfgMatch = text.match(/Configuraci[oó]n:\s*TXT=(\d+)\s*\|\s*NORMAL=(\d+)\s*\|\s*GENERAL=(\d+)\s*\|\s*FORMATOS=(\d+)/i)
+  const config = {
+    txt: cfgMatch ? parseInt(cfgMatch[1], 10) : 5,
+    normal: cfgMatch ? parseInt(cfgMatch[2], 10) : 2,
+    general: cfgMatch ? parseInt(cfgMatch[3], 10) : 2,
+    formatos: cfgMatch ? parseInt(cfgMatch[4], 10) : 2,
+  }
+
+  const typeRegex = /\[.+\] \[(\w+)\] v[aá]lidos:\s*(\d+)\s*\|\s*grupos:\s*(\d+)\s*\|\s*conservados:\s*(\d+)\s*\|\s*candidatos a borrar:\s*(\d+)\s*\|\s*borrados:\s*(\d+)\s*\|\s*protegidos por \$null:\s*(\d+)\s*\|\s*errores:\s*(\d+)\s*\|\s*MB a liberar:\s*([\d.]+)/gi
+  const typesSummary: LimpiezaTypeSummary[] = []
+  let tm: RegExpExecArray | null
+  let sumMb = 0
+  let sumCandidates = 0
+  let sumDeleted = 0
+  let sumErrors = 0
+  let sumValid = 0
+
+  while ((tm = typeRegex.exec(text)) !== null) {
+    const valid = parseInt(tm[2], 10) || 0
+    const groups = parseInt(tm[3], 10) || 0
+    const kept = parseInt(tm[4], 10) || 0
+    const candidates = parseInt(tm[5], 10) || 0
+    const deleted = parseInt(tm[6], 10) || 0
+    const errors = parseInt(tm[8], 10) || 0
+    const mbToFree = parseFloat(tm[9]) || 0
+
+    sumValid += valid
+    sumCandidates += candidates
+    sumDeleted += deleted
+    sumErrors += errors
+    sumMb += mbToFree
+
+    typesSummary.push({
+      type: tm[1].toUpperCase(),
+      valid,
+      groups,
+      kept,
+      candidates,
+      deleted,
+      errors,
+      mbToFree,
+    })
+  }
+
+  const finMatch = text.match(/\[.+\] Fin[^\r\n]*?Candidatos a borrar:\s*(\d+)\.\s*Borrados:\s*(\d+)\.\s*Protegidos por \$null:\s*(\d+)\.\s*Errores:\s*(\d+)/i)
+  if (finMatch) {
+    sumCandidates = parseInt(finMatch[1], 10) || sumCandidates
+    sumDeleted = parseInt(finMatch[2], 10) || sumDeleted
+    sumErrors = parseInt(finMatch[4], 10) || sumErrors
+  }
+
+  const omitMatch = text.match(/se omitieron\s*(\d+)\s*archivo\(s\)/i)
+  const omittedCount = omitMatch ? parseInt(omitMatch[1], 10) : 0
+
+  const compMatches = text.matchAll(/(?:empresa|GRUPO\s*\[\w+\])\s*([A-Za-z0-9_-]+)/gi)
+  const compSet = new Set<string>()
+  for (const m of compMatches) {
+    if (m[1]) compSet.add(m[1].trim())
+  }
+  const candidateCompanies = Array.from(compSet)
+
+  return {
+    id: filename,
+    filename,
+    startedAt,
+    isDryRun,
+    folder,
+    config,
+    totalValidFiles: sumValid,
+    totalCandidates: sumCandidates,
+    totalDeleted: sumDeleted,
+    totalErrors: sumErrors,
+    totalMbToFree: Math.round(sumMb * 100) / 100,
+    typesSummary,
+    omittedCount,
+    candidateCompanies,
+  }
+}
+

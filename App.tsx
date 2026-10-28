@@ -20,8 +20,9 @@ import PasswordManager from './components/PasswordManager';
 import VpnManagement from './components/VpnManagement';
 import BackupFtpLogs from './components/BackupFtpLogs';
 import BackupFtpExplorer from './components/BackupFtpExplorer';
+import SyncCleanLogs from './components/SyncCleanLogs';
 
-type TabType = 'home' | 'announcements' | 'documents' | 'employees' | 'backups' | 'register' | 'admin' | 'stats' | 'profile' | 'reports' | 'clients' | 'password-manager' | 'vpn' | 'backup-logs' | 'ftp-explorer';
+type TabType = 'home' | 'announcements' | 'documents' | 'employees' | 'backups' | 'register' | 'admin' | 'stats' | 'profile' | 'reports' | 'clients' | 'password-manager' | 'vpn' | 'backup-logs' | 'ftp-explorer' | 'sync-clean-logs';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -402,6 +403,15 @@ const App: React.FC = () => {
                 </button>
               )}
 
+              {canViewBackupLogs && (
+                <button onClick={() => handleNavigate('sync-clean-logs')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'sync-clean-logs' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span className="font-medium">Sincronización y Limpieza</span>
+                </button>
+              )}
+
               {/* Módulo oculto temporalmente a petición del usuario (código preservado) */}
               {/* {canViewBackupLogs && (
                 <button onClick={() => handleNavigate('ftp-explorer')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'ftp-explorer' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
@@ -473,6 +483,7 @@ const App: React.FC = () => {
           {activeTab === 'vpn' && <VpnManagement user={user} />}
           {activeTab === 'reports' && <MonthlyReport user={user} />}
           {activeTab === 'backup-logs' && canViewBackupLogs && <BackupFtpLogs />}
+          {activeTab === 'sync-clean-logs' && canViewBackupLogs && <SyncCleanLogs />}
           {activeTab === 'ftp-explorer' && canViewBackupLogs && <BackupFtpExplorer currentUser={user} />}
         </div>
       </main>

@@ -250,3 +250,82 @@ export interface AuditSummaryStats {
   topServer?: { name: string; bytes: number };
   dailyTrend: Array<{ date: string; bytes: number; count: number }>;
 }
+
+// ==================== AZURE SYNC & FTPS CLEAN LOGS ====================
+
+export interface AzCopySyncRun {
+  id: string;
+  filename: string;
+  jobId: string;
+  logPath?: string;
+  startedAt: string;
+  endedAt?: string;
+  durationMinutes: number;
+  status: 'completed' | 'completed_with_errors' | 'failed' | 'in_progress';
+  percent?: number;
+  filesScannedSource: number;
+  filesScannedDestination: number;
+  totalTransfers: number;
+  transfersCompleted: number;
+  transfersFailed: number;
+  transfersPending?: number;
+  deletionsAtDestination: number;
+  bytesTransferred: number;
+  companies?: string[];
+}
+
+export interface AzCopyFileItem {
+  company: string;
+  fileName: string;
+  fullPath?: string;
+  status: 'completed' | 'failed';
+  timestamp?: string;
+  errorMessage?: string;
+}
+
+export interface AzCopyFileDetailResult {
+  success: boolean;
+  notFound?: boolean;
+  message?: string;
+  logFile?: string;
+  files: AzCopyFileItem[];
+  totalCompleted: number;
+  totalFailed: number;
+}
+
+export interface LimpiezaTypeSummary {
+  type: string;
+  valid: number;
+  groups: number;
+  kept: number;
+  candidates: number;
+  deleted: number;
+  errors: number;
+  mbToFree: number;
+}
+
+export interface LimpiezaCandidateItem {
+  filename: string;
+  type: string;
+  company: string;
+  fileDate: string;
+  status: 'candidato' | 'eliminado';
+}
+
+export interface LimpiezaRun {
+  id: string;
+  filename: string;
+  startedAt: string;
+  isDryRun: boolean;
+  folder: string;
+  config: { txt: number; normal: number; general: number; formatos: number };
+  totalValidFiles: number;
+  totalCandidates: number;
+  totalDeleted: number;
+  totalErrors: number;
+  totalMbToFree: number;
+  typesSummary: LimpiezaTypeSummary[];
+  omittedCount: number;
+  candidateCompanies?: string[];
+}
+
