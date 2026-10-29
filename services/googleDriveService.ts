@@ -7,14 +7,15 @@ const DRIVE_CACHE_TTL_MS = 5 * 60 * 1000;
 // Límites del recorrido del árbol de carpetas para no disparar cientos de peticiones.
 const DRIVE_PAGE_SIZE = 1000;
 const DRIVE_MAX_PAGES = 5;
-const DRIVE_MAX_DEPTH = 3;
-const DRIVE_MAX_FOLDERS = 60;
+const DRIVE_MAX_DEPTH = 6;
+const DRIVE_MAX_FOLDERS = 150;
+
 // 0 = sin límite de fecha: se listan los últimos creados sin importar cuándo.
 const RECENT_DOCUMENT_WINDOW_DAYS = 0;
 
 // La versión del caché se sube al cambiar los campos pedidos a Drive para
 // invalidar entradas antiguas que no traen createdTime.
-const getDriveCacheKey = (folderId: string | undefined) => `google_drive_folder_v2_${folderId || ROOT_FOLDER_ID || 'root'}`;
+const getDriveCacheKey = (folderId: string | undefined) => `google_drive_folder_v3_${folderId || ROOT_FOLDER_ID || 'root'}`;
 
 const getDriveCacheEntry = <T,>(key: string): T | null => {
     if (typeof window === 'undefined') return null;
@@ -71,32 +72,61 @@ interface WalkedFile {
     file: GoogleFile;
     categoryId: string;
     categoryName: string;
+    folderPath?: string;
 }
 
 /**
  * Recorre el árbol de carpetas a partir de la raíz y devuelve todos los archivos
  * encontrados, sin duplicados. Limitado por DRIVE_MAX_DEPTH y DRIVE_MAX_FOLDERS.
  */
+/**
+ * Resuelve el tipo de archivo normalizado según mimeType o extensión
+ */
+export const resolveGoogleFileType = (file: GoogleFile): string => {
+    const mime = (file.shortcutDetails?.targetMimeType || file.mimeType || '').toLowerCase();
+
+    if (mime.includes('pdf')) return 'PDF';
+    if (mime.includes('spreadsheet') || mime.includes('excel') || mime.includes('sheet') || mime.includes('csv')) return 'XLS';
+    if (mime.includes('presentation') || mime.includes('powerpoint')) return 'PPT';
+    if (mime.includes('document') || mime.includes('word') || mime.includes('wordprocessingml') || mime.includes('text/plain')) return 'DOC';
+    if (mime.startsWith('image/')) return 'IMG';
+    if (mime.startsWith('video/')) return 'VIDEO';
+    if (mime.startsWith('audio/')) return 'AUDIO';
+    if (mime.includes('zip') || mime.includes('rar') || mime.includes('tar') || mime.includes('compressed')) return 'ZIP';
+
+    const ext = file.name && file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() || '' : '';
+    if (ext === 'pdf') return 'PDF';
+    if (['xls', 'xlsx', 'csv', 'ods'].includes(ext)) return 'XLS';
+    if (['doc', 'docx', 'txt', 'rtf', 'odt'].includes(ext)) return 'DOC';
+    if (['ppt', 'pptx', 'odp'].includes(ext)) return 'PPT';
+    if (['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'].includes(ext)) return 'IMG';
+    if (['mp4', 'webm', 'mov', 'avi'].includes(ext)) return 'VIDEO';
+    if (['zip', 'rar', '7z'].includes(ext)) return 'ZIP';
+
+    return 'DOC';
+};
+
 const walkDriveTree = async (rootFolderId: string, accessToken?: string): Promise<WalkedFile[]> => {
     const collected: WalkedFile[] = [];
     const seenFiles = new Set<string>();
     const seenFolders = new Set<string>([rootFolderId]);
     let foldersScanned = 0;
 
-    let currentLevel: Array<{ id: string; name: string }> = [{ id: rootFolderId, name: 'Documentación' }];
+    let currentLevel: Array<{ id: string; name: string; path: string }> = [{ id: rootFolderId, name: 'Raíz', path: '' }];
 
     for (let depth = 0; depth <= DRIVE_MAX_DEPTH && currentLevel.length > 0; depth++) {
         const results = await Promise.allSettled(
             currentLevel.map(folder => googleDriveService.getFolderContents(folder.id, accessToken))
         );
 
-        const nextLevel: Array<{ id: string; name: string }> = [];
+        const nextLevel: Array<{ id: string; name: string; path: string }> = [];
 
         results.forEach((result, index) => {
             if (result.status !== 'fulfilled') return;
 
             const parent = currentLevel[index];
             const isRoot = parent.id === rootFolderId;
+            const currentPath = parent.path ? `${parent.path} > ${parent.name}` : parent.name;
 
             (result.value.files || []).forEach(file => {
                 if (seenFiles.has(file.id)) return;
@@ -105,6 +135,7 @@ const walkDriveTree = async (rootFolderId: string, accessToken?: string): Promis
                     file,
                     categoryId: isRoot ? 'root' : parent.id,
                     categoryName: parent.name,
+                    folderPath: currentPath,
                 });
             });
 
@@ -112,7 +143,7 @@ const walkDriveTree = async (rootFolderId: string, accessToken?: string): Promis
                 if (seenFolders.has(folder.id) || foldersScanned >= DRIVE_MAX_FOLDERS) return;
                 seenFolders.add(folder.id);
                 foldersScanned++;
-                nextLevel.push({ id: folder.id, name: folder.name });
+                nextLevel.push({ id: folder.id, name: folder.name, path: currentPath });
             });
         });
 
@@ -243,6 +274,74 @@ export const googleDriveService = {
     /**
      * Obtiene el conteo total de documentos usando OAuth para mayor seguridad
      */
+    /**
+     * Busca archivos por nombre en Google Drive directamente
+     */
+    /**
+     * Obtiene todos los documentos recorriendo todo el árbol de carpetas de Drive (recursivo).
+     * Usa caché de sessionStorage para responder al instante en búsquedas.
+     */
+    async getAllDocuments(accessToken?: string): Promise<Document[]> {
+        const cacheKey = `google_drive_all_documents_v5_${ROOT_FOLDER_ID || 'root'}`;
+        const cached = getDriveCacheEntry<Document[]>(cacheKey);
+        if (cached && cached.length > 0) {
+            return cached;
+        }
+
+        try {
+            const walkedFiles = await walkDriveTree(ROOT_FOLDER_ID, accessToken);
+            const documents: Document[] = walkedFiles.map(({ file, categoryId, categoryName, folderPath }) => {
+                const extension = resolveGoogleFileType(file);
+                return {
+                    id: file.id,
+                    categoryId,
+                    category: categoryName,
+                    name: file.name,
+                    description: file.description || '',
+                    fileType: extension,
+                    fileSize: googleDriveService.formatBytes(parseInt(file.size || '0')),
+                    createdAt: file.createdTime || file.modifiedTime,
+                    fileUrl: file.webViewLink || '#',
+                    parentFolderId: file.parents?.[0] || categoryId,
+                    folderPath: folderPath || categoryName,
+                };
+            });
+
+            if (documents.length > 0) {
+                setDriveCacheEntry(cacheKey, documents);
+            }
+            return documents;
+        } catch (error) {
+            console.error('Error al obtener todos los documentos:', error);
+            return [];
+        }
+    },
+
+    /**
+     * Busca archivos en cualquier carpeta o subcarpeta de Google Drive
+     */
+    async searchFiles(searchTerm: string, accessToken?: string): Promise<{ files: Document[], error?: string }> {
+        if (!searchTerm || !searchTerm.trim()) return { files: [] };
+
+        try {
+            const allDocs = await googleDriveService.getAllDocuments(accessToken);
+            const term = searchTerm.trim().toLowerCase();
+
+            const matched = allDocs.filter(doc => 
+                doc.name.toLowerCase().includes(term) ||
+                (doc.description && doc.description.toLowerCase().includes(term)) ||
+                (doc.folderPath && doc.folderPath.toLowerCase().includes(term)) ||
+                (doc.category && doc.category.toLowerCase().includes(term)) ||
+                (doc.fileType && doc.fileType.toLowerCase().includes(term))
+            );
+
+            return { files: matched };
+        } catch (error: any) {
+            console.error('Error buscando archivos en Drive:', error);
+            return { files: [], error: error?.message || 'Error en búsqueda' };
+        }
+    },
+
     async getTotalDocumentCount(accessToken?: string): Promise<number> {
         if (!GOOGLE_API_KEY && !accessToken) return 0;
 
@@ -269,7 +368,7 @@ export const googleDriveService = {
 
             return walkedFiles
                 .map(({ file, categoryId, categoryName }) => {
-                    const extension = file.name.split('.').pop()?.toUpperCase() || 'FILE';
+                    const extension = resolveGoogleFileType(file);
                     return {
                         id: file.id,
                         categoryId,
@@ -308,7 +407,7 @@ export const googleDriveService = {
         }));
 
         const documents: Document[] = (files || []).map(file => {
-            const extension = file.name.split('.').pop()?.toUpperCase() || 'FILE';
+            const extension = resolveGoogleFileType(file);
             return {
                 id: file.id,
                 categoryId: categoryId,

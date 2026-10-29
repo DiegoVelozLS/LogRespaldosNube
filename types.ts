@@ -52,6 +52,7 @@ export interface Document {
   categoryId: string;
   fileUrl: string;
   parentFolderId?: string;
+  folderPath?: string;
   createdAt: string;
   fileSize: string;
   fileType: string;
