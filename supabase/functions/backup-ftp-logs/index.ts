@@ -1212,7 +1212,7 @@ function parseLimpiezaRun(filename: string, text: string): LimpiezaRun | null {
     formatos: cfgMatch ? parseInt(cfgMatch[4], 10) : 2,
   }
 
-  const typeRegex = /\[.+\] \[(\w+)\] v[aá]lidos:\s*(\d+)\s*\|\s*grupos:\s*(\d+)\s*\|\s*conservados:\s*(\d+)\s*\|\s*candidatos a borrar:\s*(\d+)\s*\|\s*borrados:\s*(\d+)\s*\|\s*protegidos por \$null:\s*(\d+)\s*\|\s*errores:\s*(\d+)\s*\|\s*MB a liberar:\s*([\d.]+)/gi
+  const typeRegex = /\[.+\] \[(\w+)\] v[aá]lidos:\s*(\d+)\s*\|\s*grupos:\s*(\d+)\s*\|\s*conservados:\s*(\d+)\s*\|\s*candidatos a borrar:\s*(\d+)\s*\|\s*borrados:\s*(\d+)\s*\|\s*protegidos por \$null:\s*(\d+)\s*\|\s*errores:\s*(\d+)\s*\|\s*MB a liberar(?:\/liberado)?:\s*([\d.]+)/gi
   const typesSummary: LimpiezaTypeSummary[] = []
   let tm: RegExpExecArray | null
   let sumMb = 0

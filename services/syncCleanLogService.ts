@@ -100,15 +100,25 @@ export const syncCleanLogService = {
    */
   parseLimpiezaDetails(content: string, isDryRun: boolean): LimpiezaCandidateItem[] {
     const items: LimpiezaCandidateItem[] = [];
-    const regex = /(?:VISTA PREVIA:\s*borrar[ií]a|BORRADO:|ELIMINADO:)\s*([^\s]+)\s*\(\[(\w+)\]\s*empresa\s*([^\s,]+),\s*fecha\s*([^\)]+)\)/gi;
+    const regex = /(?:VISTA PREVIA:\s*borrar[ií]a|BORRADO:|ELIMINADO:)\s*([^\s]+)\s*\(\[(\w+)\]\s*empresa\s*([^\s,\)]+)(?:,\s*fecha\s*([^\)]+))?\)/gi;
 
     let match: RegExpExecArray | null;
     while ((match = regex.exec(content)) !== null) {
+      const filename = match[1].trim();
+      let fileDate = match[4]?.trim() || '';
+      if (!fileDate) {
+        // Extraer fecha del nombre del archivo si no viene en el mensaje (ej: A001_099291272300124092026100714_PS.TXT)
+        const dateMatch = filename.match(/_?(\d{2})(\d{2})(\d{4})(\d{2})(\d{2})(\d{2})_/);
+        if (dateMatch) {
+          fileDate = `${dateMatch[1]}/${dateMatch[2]}/${dateMatch[3]} ${dateMatch[4]}:${dateMatch[5]}:${dateMatch[6]}`;
+        }
+      }
+
       items.push({
-        filename: match[1].trim(),
+        filename,
         type: match[2].toUpperCase().trim(),
         company: match[3].trim(),
-        fileDate: match[4].trim(),
+        fileDate,
         status: isDryRun ? 'candidato' : 'eliminado',
       });
     }
