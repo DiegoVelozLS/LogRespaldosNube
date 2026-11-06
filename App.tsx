@@ -21,6 +21,7 @@ import VpnManagement from './components/VpnManagement';
 import BackupFtpLogs from './components/BackupFtpLogs';
 import BackupFtpExplorer from './components/BackupFtpExplorer';
 import SyncCleanLogs from './components/SyncCleanLogs';
+import { systemSettingsService, ScheduleModuleVisibility } from './services/systemSettingsService';
 
 type TabType = 'home' | 'announcements' | 'documents' | 'employees' | 'backups' | 'register' | 'admin' | 'stats' | 'profile' | 'reports' | 'clients' | 'password-manager' | 'vpn' | 'backup-logs' | 'ftp-explorer' | 'sync-clean-logs';
 
@@ -33,6 +34,11 @@ const App: React.FC = () => {
   const [documentNavigation, setDocumentNavigation] = useState<{ categoryId?: string; categoryName?: string; documentId?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [modulesVisibility, setModulesVisibility] = useState<ScheduleModuleVisibility>({
+    module_backups_panel: true,
+    module_backups_register: true,
+    module_backups_reports: true,
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -64,6 +70,13 @@ const App: React.FC = () => {
           hasLoadedInitialUser = true;
           // Sincronizar favoritos desde Supabase en background
           favoritesService.syncFromSupabase();
+          // Cargar visibilidad de módulos de tareas programadas
+          try {
+            const visibility = await systemSettingsService.getScheduleModulesVisibility();
+            if (isMounted) setModulesVisibility(visibility);
+          } catch (vErr) {
+            console.warn('Error cargando visibilidad de módulos:', vErr);
+          }
           const tasksToday = await supabaseDataService.getTasksForDate(new Date());
           setPendingAlerts(tasksToday.filter(t => !t.log).length);
         }
@@ -130,9 +143,18 @@ const App: React.FC = () => {
 
     loadUser();
 
+    // Escuchar actualizaciones de configuraciones en tiempo real disparadas desde AdminPanel
+    const handleSettingsUpdated = (e: any) => {
+      if (e.detail) {
+        setModulesVisibility(prev => ({ ...prev, ...e.detail }));
+      }
+    };
+    window.addEventListener('system_settings_updated', handleSettingsUpdated);
+
     return () => {
       isMounted = false;
       subscription.unsubscribe();
+      window.removeEventListener('system_settings_updated', handleSettingsUpdated);
     };
   }, []);
 
@@ -372,28 +394,19 @@ const App: React.FC = () => {
                 <p className="text-xs text-slate-500 uppercase tracking-wider px-4">Respaldos</p>
               </div>
 
-              {canViewBackups && (
-                <>
-                  <button onClick={() => handleNavigate('backups')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'backups' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-                    <DashboardIcon />
-                    <span className="font-medium">Panel Respaldos</span>
-                    {pendingAlerts > 0 && <span className="ml-auto bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">{pendingAlerts}</span>}
-                  </button>
-
-                  <button onClick={() => handleNavigate('register')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'register' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-                    <ClockIcon />
-                    <span className="font-medium">Registrar</span>
-                  </button>
-
-                  <button onClick={() => handleNavigate('reports')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'reports' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span className="font-medium">Reportes</span>
-                  </button>
-                </>
+              {/* 1. Respaldos Clientes */}
+              {canViewBackupLogs && (
+                <button onClick={() => handleNavigate('ftp-explorer')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'ftp-explorer' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                  {/* Ícono de Carpeta Comprimida / Zip */}
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11h-2m2 3h-2m1-5v9" />
+                  </svg>
+                  <span className="font-medium">Respaldos Clientes</span>
+                </button>
               )}
 
+              {/* 2. Logs de respaldos */}
               {canViewBackupLogs && (
                 <button onClick={() => handleNavigate('backup-logs')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'backup-logs' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -403,6 +416,7 @@ const App: React.FC = () => {
                 </button>
               )}
 
+              {/* 3. Sincronización y Limpieza */}
               {canViewBackupLogs && (
                 <button onClick={() => handleNavigate('sync-clean-logs')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'sync-clean-logs' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -412,15 +426,34 @@ const App: React.FC = () => {
                 </button>
               )}
 
-              {/* Módulo oculto temporalmente a petición del usuario (código preservado) */}
-              {/* {canViewBackupLogs && (
-                <button onClick={() => handleNavigate('ftp-explorer')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'ftp-explorer' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  <span className="font-medium">Descarga FTP</span>
-                </button>
-              )} */}
+              {/* Resto: Módulos de Tareas Programadas (Panel Respaldos, Registrar, Reportes) */}
+              {canViewBackups && (
+                <>
+                  {modulesVisibility.module_backups_panel && (
+                    <button onClick={() => handleNavigate('backups')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'backups' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                      <DashboardIcon />
+                      <span className="font-medium">Panel Respaldos</span>
+                      {pendingAlerts > 0 && <span className="ml-auto bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">{pendingAlerts}</span>}
+                    </button>
+                  )}
+
+                  {modulesVisibility.module_backups_register && (
+                    <button onClick={() => handleNavigate('register')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'register' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                      <ClockIcon />
+                      <span className="font-medium">Registrar</span>
+                    </button>
+                  )}
+
+                  {modulesVisibility.module_backups_reports && (
+                    <button onClick={() => handleNavigate('reports')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'reports' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span className="font-medium">Reportes</span>
+                    </button>
+                  )}
+                </>
+              )}
             </>
           )}
 
@@ -467,11 +500,11 @@ const App: React.FC = () => {
           )}
           {activeTab === 'documents' && <DocumentRepository initialCategoryId={documentNavigation?.categoryId} initialCategoryName={documentNavigation?.categoryName} initialDocumentId={documentNavigation?.documentId} />}
           {activeTab === 'employees' && <EmployeeDirectory user={user} />}
-          {activeTab === 'backups' && <Dashboard user={user} onRefresh={() => { }} onNavigateToRegister={(scheduleId) => {
+          {activeTab === 'backups' && modulesVisibility.module_backups_panel && <Dashboard user={user} onRefresh={() => { }} onNavigateToRegister={(scheduleId) => {
             setSelectedTaskId(scheduleId);
             setActiveTab('register');
           }} />}
-          {activeTab === 'register' && <BackupRegistration user={user} preSelectedTaskId={selectedTaskId} onComplete={() => {
+          {activeTab === 'register' && modulesVisibility.module_backups_register && <BackupRegistration user={user} preSelectedTaskId={selectedTaskId} onComplete={() => {
             setSelectedTaskId(undefined);
             setActiveTab('backups');
           }} />}
@@ -481,7 +514,7 @@ const App: React.FC = () => {
           {activeTab === 'clients' && <ClientDirectory user={user} />}
           {activeTab === 'password-manager' && <PasswordManager user={user} />}
           {activeTab === 'vpn' && <VpnManagement user={user} />}
-          {activeTab === 'reports' && <MonthlyReport user={user} />}
+          {activeTab === 'reports' && modulesVisibility.module_backups_reports && <MonthlyReport user={user} />}
           {activeTab === 'backup-logs' && canViewBackupLogs && <BackupFtpLogs />}
           {activeTab === 'sync-clean-logs' && canViewBackupLogs && <SyncCleanLogs />}
           {activeTab === 'ftp-explorer' && canViewBackupLogs && <BackupFtpExplorer currentUser={user} />}

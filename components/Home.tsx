@@ -95,7 +95,8 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
     if (!value) return '';
 
     const parser = new DOMParser();
-    return parser.parseFromString(value, 'text/html').body.textContent || value;
+    const text = parser.parseFromString(value, 'text/html').body.textContent || value;
+    return text.replace(/\s+/g, ' ').trim();
   };
 
   useEffect(() => {
@@ -327,43 +328,25 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
           </p>
         </button>
 
-        {user.role === 'SOPORTE' ? (
-          <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 opacity-60 cursor-not-allowed text-left">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">
-                <ServerIcon />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-slate-400">Sistema</p>
-                <p className="text-sm text-slate-400">Respaldos</p>
-              </div>
-            </div>
-            <p className="mt-3 text-xs text-slate-400 font-medium flex items-center gap-1">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        <button
+          onClick={() => onNavigate('password-manager')}
+          className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 hover:shadow-md hover:border-amber-300 transition text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
-              Requiere permiso de acceso
-            </p>
-          </div>
-        ) : (
-          <button
-            onClick={() => onNavigate('backups')}
-            className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 hover:shadow-md hover:border-amber-300 transition text-left"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
-                <ServerIcon />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-slate-800">Sistema</p>
-                <p className="text-sm text-slate-500">Respaldos</p>
-              </div>
             </div>
-            <p className="mt-3 text-xs text-amber-600 font-medium">
-              Control de backups
-            </p>
-          </button>
-        )}
+            <div>
+              <p className="text-2xl font-bold text-slate-800">Claves</p>
+              <p className="text-sm text-slate-500">Gestor Seguro</p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-amber-600 font-medium">
+            Bóveda de credenciales SQL
+          </p>
+        </button>
       </div>
 
       {/* Sección de actividad reciente */}
@@ -427,9 +410,17 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
                           )}
                         </div>
                         <h3 className="font-semibold text-slate-800">{item.title}</h3>
-                        <p className="text-sm text-slate-600 mt-1 line-clamp-2 whitespace-pre-line">
+                        <p className="text-sm text-slate-600 mt-1 line-clamp-2">
                           {item.description}
                         </p>
+                        {!isDocument && (
+                          <div className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 group-hover:text-blue-700">
+                            <span>Leer anuncio completo</span>
+                            <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+                        )}
                         <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
                           <span>Por {item.owner}</span>
                           <span>•</span>
@@ -460,7 +451,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate }) => {
                     onClick={() => onNavigate('announcements', {
                       announcementId: item.id.replace('announcement-', ''),
                     })}
-                    className="block w-full text-left cursor-pointer"
+                    className="block w-full text-left cursor-pointer group"
                   >
                     {content}
                   </button>

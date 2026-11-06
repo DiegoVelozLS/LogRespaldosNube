@@ -5,6 +5,7 @@ import { supabaseDataService } from '../services/supabaseDataService';
 import { BACKUP_TYPE_ICONS, STATUS_COLORS } from '../constants';
 import VaultConfiguration from './VaultConfiguration';
 import BackupDownloadAudit from './BackupDownloadAudit';
+import { systemSettingsService, ScheduleModuleVisibility } from '../services/systemSettingsService';
 
 interface ConfirmDeleteModalProps {
   isOpen: boolean;
@@ -400,19 +401,30 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
   const [resetPinError, setResetPinError] = useState('');
   const [adminNotice, setAdminNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // Estados para configuración de visibilidad de módulos de respaldos
+  const [modulesVisibility, setModulesVisibility] = useState<ScheduleModuleVisibility>({
+    module_backups_panel: true,
+    module_backups_register: true,
+    module_backups_reports: true,
+  });
+  const [updatingModuleKey, setUpdatingModuleKey] = useState<keyof ScheduleModuleVisibility | null>(null);
+  const [settingsNotice, setSettingsNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      const [schedulesData, logsData, usersData, auditLogsData] = await Promise.all([
+      const [schedulesData, logsData, usersData, auditLogsData, visibilityData] = await Promise.all([
         supabaseDataService.getSchedules(),
         supabaseDataService.getLogs(),
         supabaseDataService.getUsers(),
-        supabaseDataService.getVaultAuditLogs()
+        supabaseDataService.getVaultAuditLogs(),
+        systemSettingsService.getScheduleModulesVisibility(),
       ]);
       setSchedules(schedulesData);
       setLogs(logsData);
       setUsers(usersData);
       setAuditLogs(auditLogsData);
+      setModulesVisibility(visibilityData);
       setLoading(false);
     };
     loadData();
@@ -518,6 +530,37 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
     setResetPinError('');
   };
 
+  const handleToggleModuleVisibility = async (key: keyof ScheduleModuleVisibility) => {
+    const nextValue = !modulesVisibility[key];
+    setUpdatingModuleKey(key);
+    setSettingsNotice(null);
+
+    // Actualización optimista en la interfaz
+    setModulesVisibility(prev => ({ ...prev, [key]: nextValue }));
+
+    try {
+      await systemSettingsService.updateModuleVisibility(key, nextValue, user.id);
+      setSettingsNotice({
+        type: 'success',
+        message: 'Configuración de módulos actualizada correctamente.',
+      });
+      // Notificar a App.tsx mediante un evento personalizado
+      window.dispatchEvent(new CustomEvent('system_settings_updated', {
+        detail: { [key]: nextValue }
+      }));
+    } catch (err: any) {
+      // Revertir en caso de error
+      setModulesVisibility(prev => ({ ...prev, [key]: !nextValue }));
+      setSettingsNotice({
+        type: 'error',
+        message: err?.message || 'Error al guardar la configuración en la base de datos.',
+      });
+    } finally {
+      setUpdatingModuleKey(null);
+      setTimeout(() => setSettingsNotice(null), 4000);
+    }
+  };
+
   const statusStats = [
     { name: 'Completados', value: logs.filter(l => l.status === 'COMPLETED').length, color: '#22c55e' },
     { name: 'Novedades', value: logs.filter(l => l.status === 'WARNING').length, color: '#eab308' },
@@ -600,8 +643,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
       </div>
 
       {activeTab === 'schedules' && role === UserRole.ADMIN && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          {showScheduleForm ? (
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            {showScheduleForm ? (
             <ScheduleForm
               editingSchedule={editingSchedule}
               onCancel={() => {
@@ -709,6 +753,118 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user, initialTab = 'schedules' 
             </>
           )}
         </div>
+
+        {/* Sección de Configuración de Módulos de Tareas Programadas */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>Configuración de Tareas Programadas y Respaldos</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Controla la visibilidad de las páginas de tareas programadas en el menú lateral para todos los usuarios.
+              </p>
+            </div>
+            {settingsNotice && (
+              <span className={`text-xs px-3 py-1.5 rounded-lg font-semibold animate-fadeIn ${
+                settingsNotice.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+              }`}>
+                {settingsNotice.message}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Switch: Panel de respaldos */}
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center justify-between gap-4 hover:border-slate-300 transition">
+              <div className="space-y-0.5">
+                <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <span>📊 Panel Respaldos</span>
+                </p>
+                <p className="text-xs text-slate-500">
+                  Tablero de tareas del día y semáforos de estado.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={modulesVisibility.module_backups_panel}
+                disabled={updatingModuleKey === 'module_backups_panel'}
+                onClick={() => handleToggleModuleVisibility('module_backups_panel')}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 ${
+                  modulesVisibility.module_backups_panel ? 'bg-blue-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    modulesVisibility.module_backups_panel ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Switch: Registrar */}
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center justify-between gap-4 hover:border-slate-300 transition">
+              <div className="space-y-0.5">
+                <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <span>⏱️ Registrar Respaldo</span>
+                </p>
+                <p className="text-xs text-slate-500">
+                  Formulario manual de registro de ejecución de tareas.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={modulesVisibility.module_backups_register}
+                disabled={updatingModuleKey === 'module_backups_register'}
+                onClick={() => handleToggleModuleVisibility('module_backups_register')}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 ${
+                  modulesVisibility.module_backups_register ? 'bg-blue-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    modulesVisibility.module_backups_register ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Switch: Reportes */}
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center justify-between gap-4 hover:border-slate-300 transition">
+              <div className="space-y-0.5">
+                <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <span>📄 Reportes</span>
+                </p>
+                <p className="text-xs text-slate-500">
+                  Historial mensual, métricas y descarga de reportes.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={modulesVisibility.module_backups_reports}
+                disabled={updatingModuleKey === 'module_backups_reports'}
+                onClick={() => handleToggleModuleVisibility('module_backups_reports')}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 ${
+                  modulesVisibility.module_backups_reports ? 'bg-blue-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    modulesVisibility.module_backups_reports ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
       )}
 
       {activeTab === 'users' && role === UserRole.ADMIN && (

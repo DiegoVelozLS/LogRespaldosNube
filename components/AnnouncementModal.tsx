@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Announcement, AnnouncementCategory, AnnouncementPriority, UserRole, User, AnnouncementNotification } from '../types';
 import { supabaseDataService } from '../services/supabaseDataService';
+import { RichTextEditor } from './RichTextEditor';
 
 interface AnnouncementModalProps {
     isOpen: boolean;
@@ -36,7 +37,6 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
     const getPlainTextContent = (value: string) => {
         if (!value) return '';
-
         const parser = new DOMParser();
         return parser.parseFromString(value, 'text/html').body.textContent || value;
     };
@@ -44,7 +44,7 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
     useEffect(() => {
         if (announcement) {
             setTitle(announcement.title);
-            setContent(getPlainTextContent(announcement.content));
+            setContent(announcement.content || '');
             setCategory(announcement.category);
             setPriority(announcement.priority);
             setIsPinned(announcement.isPinned);
@@ -80,6 +80,12 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+
+        const plainText = getPlainTextContent(content).trim();
+        if (!plainText) {
+            alert('Por favor, ingresa el contenido del anuncio.');
+            return;
+        }
 
         const notification: AnnouncementNotification | undefined = notifyByEmail ? {
             notifyByEmail,
@@ -172,13 +178,10 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
                     <div className="space-y-1">
                         <label className="text-sm font-semibold text-slate-700">Contenido</label>
-                        <textarea
-                            required
-                            rows={4}
-                            value={content}
-                            onChange={(e) => setContent(e.target.value)}
-                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none"
-                            placeholder="Describe el anuncio detenidamente..."
+                        <RichTextEditor
+                            content={content}
+                            onChange={setContent}
+                            placeholder="Describe el anuncio detenidamente con negritas, listas o enlaces..."
                         />
                     </div>
 
@@ -275,7 +278,7 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
                                                     <div className="p-4 text-center text-slate-400 text-sm">No se encontraron usuarios</div>
                                                 ) : (
                                                     filteredUsers.map(user => (
-                                                        <div
+                                                         <div
                                                             key={user.id}
                                                             className="flex items-center gap-3 p-2 hover:bg-slate-50 transition cursor-pointer"
                                                             onClick={() => toggleUserSelection(user.id)}
@@ -283,7 +286,7 @@ const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
                                                             <input
                                                                 type="checkbox"
                                                                 checked={selectedUserIds.includes(user.id)}
-                                                                onChange={() => { }} // Manejado por el div parent
+                                                                onChange={() => { }}
                                                                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                                                             />
                                                             <div className="flex flex-col">

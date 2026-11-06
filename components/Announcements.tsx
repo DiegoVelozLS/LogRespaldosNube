@@ -319,9 +319,14 @@ const Announcements: React.FC<AnnouncementsProps> = ({ user, targetId, onClearTa
                 <h2 className="text-xl font-bold text-slate-800 mb-3">
                   {announcement.title}
                 </h2>
-                <p className="text-slate-600 leading-relaxed whitespace-pre-line">
-                  {getPlainTextContent(announcement.content)}
-                </p>
+                <div
+                  className="rich-text-content text-slate-700 leading-relaxed"
+                  dangerouslySetInnerHTML={{
+                    __html: /<[a-z][\s\S]*>/i.test(announcement.content || '')
+                      ? (announcement.content || '')
+                      : (announcement.content || '').replace(/\n/g, '<br />')
+                  }}
+                />
               </div>
 
               {/* Footer */}

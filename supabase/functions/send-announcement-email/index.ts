@@ -86,12 +86,11 @@ Deno.serve(async (req) => {
     const priorityLabel = announcement.priority === 'URGENT' ? '🚨 URGENTE' : 
                           announcement.priority === 'HIGH' ? '⚠️ ALTA' : 'Normal'
     
-    // Contenido completo del anuncio (limpiando HTML básico para asegurar visualización)
-    const contentText = (announcement.content || '')
-      .replace(/<br\s*\/?>/gi, '\n') // Mantener saltos de línea
-      .replace(/<p>/gi, '') // Eliminar etiquetas p
-      .replace(/<\/p>/gi, '\n\n') // Cambiar cierres de p por saltos dobles
-      .replace(/<[^>]*>?/gm, '') // Limpiar el resto de HTML plano
+    // Contenido enriquecido del anuncio para el correo
+    const hasHtml = /<[a-z][\s\S]*>/i.test(announcement.content || '');
+    const emailBodyContent = hasHtml
+      ? (announcement.content || '')
+      : (announcement.content || '').replace(/\n/g, '<br />');
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
@@ -105,7 +104,7 @@ Deno.serve(async (req) => {
             <h2 style="margin: 0 0 10px 0; font-size: 18px; color: #0f172a;">${announcement.title}</h2>
             <span style="font-size: 12px; font-weight: bold; padding: 4px 8px; border-radius: 4px; background: #dbeafe; color: #1e40af;">${priorityLabel}</span>
           </div>
-          <div style="font-size: 15px; line-height: 1.6; color: #334155; border-top: 1px solid #f1f5f9; padding-top: 20px; white-space: pre-wrap;">${contentText}</div>
+          <div style="font-size: 15px; line-height: 1.6; color: #334155; border-top: 1px solid #f1f5f9; padding-top: 20px;">${emailBodyContent}</div>
           <div style="text-align: center; margin-top: 30px;">
             <a href="${INTRANET_URL}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Ver en la Intranet</a>
           </div>
